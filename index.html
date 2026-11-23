@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="theme-color" content="#1d4f7a">
+<meta name="description" content="Maps and tools for getting around the Chicago Pedway, the buildings it connects and nearby transit.">
+<meta name="pedway-build" content="pedway-tools-app">
+<title>Pedway Tools — Chicago Pedway maps</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="vendor/leaflet-1.9.4/leaflet.css">
+<link rel="stylesheet" href="vendor/fragment-kit-v0.5.0/src/ui/kit.css">
+<link rel="stylesheet" href="style.css">
+<script src="vendor/leaflet-1.9.4/leaflet.js" defer></script>
+<script type="module" src="src/app.js"></script>
+</head>
+<body>
+<main id="app">
+  <div id="map" role="region" aria-label="Map of the Chicago Loop and Pedway"></div>
+  <noscript><p class="noscript">Pedway Tools needs JavaScript to show the map.</p></noscript>
+</main>
+</body>
+</html>

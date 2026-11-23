@@ -1,0 +1,27 @@
+name: CI and Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    uses: curtcox/Tools-for-pages-with-state-in-URL-fragments/.github/workflows/test.yml@v4
+    with:
+      kit-path: vendor/fragment-kit-v0.5.0
+      browser-command: npx playwright test --config tests/browser/playwright.config.js
+      gallery-command: ''
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: curtcox/Tools-for-pages-with-state-in-URL-fragments/.github/workflows/pages.yml@v2
+    with:
+      stage-command: node scripts/stage.mjs _site
+      path: _site
+      verify-marker: pedway-tools-app
