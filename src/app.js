@@ -5,13 +5,15 @@ import { examples } from './examples.js';
 import { createPinLayer } from './pins.js';
 import { createPinEditor } from './pin-editor.js';
 import { createShare } from './share.js';
-import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, LEVELS } from './doc.js';
-import { createDataLayers, POI_KINDS } from './layers.js';
+import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, OVERLAYS, LEVELS } from './doc.js';
+import { createDataLayers, createPanes, POI_KINDS } from './layers.js';
+import { createOverlays } from './overlays/overlays.js';
+import { createReadout } from './overlays/readout.js';
 import { createGps } from './gps.js';
 import { createSearch } from './search.js';
 import { locationView } from './location-view.js';
 import { externalLinks } from './external.js';
-import { getLayerDefaults, setLayerDefaults } from './viewer-settings.js';
+import { getLayerDefaults, setLayerDefaults, getFormat } from './viewer-settings.js';
 import { createFileActions } from './file-actions.js';
 import { startOffline } from './offline.js';
 import { createAbout } from './about.js';
@@ -58,8 +60,12 @@ const pins = createPinLayer(L, map, {
   onEdit: id => { const pin = findPin(id); if (pin) { pins.close(); editor.open(pin); } },
   onMove: (id, lat, lon) => setPins(current.map.pins.map(p => p.id === id ? pinAt(lat, lon, p) : p)),
 });
-const data = createDataLayers(L, map, { tiles,
-  onChange: ({ layers, level, gps: offer }) => setLayers(layers, level, offer),
+createPanes(map);
+const latlonFormat = () => getFormat() === 'dms' ? 'dms' : 'decimal';
+const overlays = createOverlays(L, map, { latlonFormat });
+const readout = createReadout(L, map, { latlonFormat });
+const data = createDataLayers(L, map, { tiles, overlays, readout,
+  onChange: ({ layers, level, gps: offer, overlays: on }) => setLayers(layers, level, offer, on),
   onError: () => setStatus('Some map data could not be loaded. Pins still work.') });
 const gps = createGps(L, map, { setStatus: (...args) => setStatus(...args), onDropPin: (lat, lon) => { gps.stop(); addPin(lat, lon); },
   accessPoints: () => data.features.get('access') });
@@ -111,17 +117,17 @@ function setPins(list) {
   pins.render(current.map.pins);
   changed();
 }
-// Layer and view choices go into the link and become this viewer's default for new maps.
-function setLayers(layers, level, offer = current.map.gps) {
-  current = type.normalize({ ...current, src: title.value, map: { ...current.map, layers, level, gps: offer } });
+// Layer, overlay and view choices go into the link and become this viewer's default for new maps.
+function setLayers(layers, level, offer = current.map.gps, on = current.map.overlays) {
+  current = type.normalize({ ...current, src: title.value, map: { ...current.map, layers, level, gps: offer, overlays: on } });
   data.show(current.map);
-  setLayerDefaults({ layers: current.map.layers, level: current.map.level });
+  setLayerDefaults({ layers: current.map.layers, level: current.map.level, overlays: current.map.overlays });
   changed();
 }
 function blankMap() {
-  const { layers, level } = getLayerDefaults();
-  const known = Object.fromEntries(Object.keys(LAYERS).filter(key => typeof layers?.[key] === 'boolean').map(key => [key, layers[key]]));
-  return { src: '', map: { layers: known, level: LEVELS.includes(level) ? level : 'both' } };
+  const { layers, level, overlays: on } = getLayerDefaults();
+  const known = (record, defaults) => Object.fromEntries(Object.keys(defaults).filter(key => typeof record?.[key] === 'boolean').map(key => [key, record[key]]));
+  return { src: '', map: { layers: known(layers, LAYERS), overlays: known(on, OVERLAYS), level: LEVELS.includes(level) ? level : 'both' } };
 }
 function nextId() {
   const ids = new Set(current.map.pins.map(pin => pin.id));
@@ -288,6 +294,6 @@ menuButton('About', 'about-open', () => about.open());
 await navigate();
 
 // Exposed for browser tests and debugging.
-globalThis.pedway = { map, shell, urlState, snapshot, examples, pins, data, gps, search, files, offline, get library() { return libraryPanel; } };
+globalThis.pedway = { map, shell, urlState, snapshot, examples, pins, data, overlays, readout, gps, search, files, offline, get library() { return libraryPanel; } };
 document.body.dataset.ready = 'true';
 document.documentElement.dataset.ready = 'true';

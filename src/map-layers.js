@@ -7,6 +7,7 @@ import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
 export const LAYER_GROUPS = Object.freeze([
   { key: 'transit', title: 'Pedway and transit' },
   { key: 'places', title: 'Places' },
+  { key: 'coords', title: 'Coordinates' },
 ]);
 
 // Panes fix the stacking order whichever layers are on. Leaflet's own panes are
@@ -35,3 +36,13 @@ export const MAP_LAYERS = Object.freeze([
 
 /** The layer keys a map document holds, with each one's default. */
 export const LAYER_DEFAULTS = Object.freeze(Object.fromEntries(MAP_LAYERS.map(layer => [layer.key, layer.default])));
+
+// Coordinate overlays: drawn from code alone (src/overlays/), kept in the document's
+// overlays field rather than layers. All are off in a new map.
+export const OVERLAYS = Object.freeze([
+  { key: 'latlon', title: 'Latitude and longitude', color: '#b91c1c' },
+  { key: 'geohash', title: 'Geohash', color: '#0f766e' },
+  { key: 'usng', title: 'USNG', color: '#1d4ed8' },
+  { key: 'grid', title: 'Address grid and corners', color: '#92400e' },
+].map(Object.freeze));
+export const OVERLAY_DEFAULTS = Object.freeze(Object.fromEntries(OVERLAYS.map(overlay => [overlay.key, false])));

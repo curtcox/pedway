@@ -1,7 +1,7 @@
 // Draws the committed GeoJSON data and the panel that turns each layer on and off.
 import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
-import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM } from './map-layers.js';
+import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM, OVERLAYS } from './map-layers.js';
 import { LEVELS } from './doc.js';
 import { externalLinks } from './external.js';
 import { fetchSnapshot } from './data-snapshot.js';
@@ -70,12 +70,18 @@ const STYLES = {
       p.category === 'restroom' && 'Restrooms in buildings keep the building’s hours and may be for customers only.'], p.osm, geometry.coordinates) },
 };
 
-export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = new URL('../data/', import.meta.url), snapshotId = null }) {
+/** Creates the panes in the order PANES gives. Call before anything draws in them. */
+export function createPanes(map) {
   for (const { name, zIndex } of PANES) if (!map.getPane(name)) map.createPane(name).style.zIndex = zIndex;
+}
+
+// overlays and readout draw the coordinate overlays (src/overlays/); the panel switches them.
+export function createDataLayers(L, map, { tiles, overlays, readout, onChange, onError, baseUrl = new URL('../data/', import.meta.url), snapshotId = null }) {
+  createPanes(map);
   const groups = new Map(MAP_LAYERS.map(layer => [layer.key, L.layerGroup()]));
   const features = new Map(DATA_LAYERS.map(layer => [layer.key, []]));
   const built = new Map();   // map layer key → promise that its shapes are in its group
-  let state = { layers: {}, level: 'both', gps: false };
+  let state = { layers: {}, overlays: {}, level: 'both', gps: false };
   // The data comes from the snapshot data/current.json names. Each file loads and is
   // checked on its own, so one that fails leaves the others on the map.
   let manifest = null;
@@ -115,7 +121,7 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
 
   const visible = layer => state.layers[layer.key] && !(state.level === 'street' && layer.streetHides) && !(layer.minZoom && map.getZoom() < layer.minZoom);
   function show(next) {
-    state = { layers: { ...next.layers }, level: next.level, gps: Boolean(next.gps) };
+    state = { layers: { ...next.layers }, overlays: { ...next.overlays }, level: next.level, gps: Boolean(next.gps) };
     for (const layer of MAP_LAYERS) {
       const group = groups.get(layer.key);
       if (!visible(layer)) { group.remove(); continue; }
@@ -123,6 +129,8 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
       if (!built.has(layer.key)) build(layer).catch(error => onError?.(error));
     }
     tiles?.setOpacity(state.level === 'pedway' ? 0.4 : 1);
+    overlays?.show(state.overlays);
+    readout?.show(state.overlays);
     panel.sync();
   }
   map.on('zoomend', () => show(state));
@@ -133,13 +141,25 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
       const box = element('div', null, { className: 'leaflet-bar layers-control' });
       const toggle = element('button', 'Layers', { type: 'button', id: 'layers-open', 'aria-expanded': 'false', 'aria-controls': 'layers-panel' });
       const sheet = element('div', null, { id: 'layers-panel', className: 'layers-panel', hidden: '' });
-      const boxes = new Map();
+      const boxes = new Map(), overlayBoxes = new Map();
       const placesNote = element('p', 'Zoom in to see places.', { className: 'layers-note', id: 'layers-zoom-note' });
       for (const group of LAYER_GROUPS) {
         const members = MAP_LAYERS.filter(layer => layer.group === group.key);
-        if (!members.length) continue;
+        if (!members.length && group.key !== 'coords') continue;
         sheet.append(element('h3', group.title, { id: `layers-${group.key}` }));
         if (group.key === 'places') sheet.append(placesNote);
+        if (group.key === 'coords') {
+          for (const overlay of OVERLAYS) {
+            const input = element('input', null, { type: 'checkbox', id: `overlay-${overlay.key}`, value: overlay.key });
+            const swatch = element('span', null, { className: 'layer-swatch swatch-coords', 'aria-hidden': 'true' });
+            swatch.style.borderColor = overlay.color;
+            const label = element('label', null, { className: 'layer-option', for: `overlay-${overlay.key}` });
+            label.append(input, swatch, element('span', overlay.title));
+            input.onchange = () => onChange({ ...state, overlays: { ...state.overlays, [overlay.key]: input.checked } });
+            overlayBoxes.set(overlay.key, input);
+            sheet.append(label);
+          }
+        }
         for (const layer of members) {
           const input = element('input', null, { type: 'checkbox', id: `layer-${layer.key}`, value: layer.key });
           const swatch = element('span', null, { className: `layer-swatch swatch-${layer.source.file ?? layer.key}`, 'aria-hidden': 'true' });
@@ -171,6 +191,7 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
       L.DomEvent.disableScrollPropagation(box);
       this.sync = () => {
         for (const [key, input] of boxes) input.checked = Boolean(state.layers[key]);
+        for (const [key, input] of overlayBoxes) input.checked = Boolean(state.overlays[key]);
         level.value = state.level;
         offer.checked = state.gps;
         for (const layer of MAP_LAYERS) if (layer.streetHides) boxes.get(layer.key).disabled = state.level === 'street';

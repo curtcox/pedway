@@ -21,7 +21,8 @@ export function setFormat(id) {
 // The layers and view this viewer last chose start every new, blank map.
 // A shared link carries its own and overrides these.
 export function getLayerDefaults() {
-  const { layers, level } = read();
-  return { layers: layers && typeof layers === 'object' ? layers : null, level: typeof level === 'string' ? level : null };
+  const { layers, level, overlays } = read();
+  const record = value => value && typeof value === 'object' ? value : null;
+  return { layers: record(layers), overlays: record(overlays), level: typeof level === 'string' ? level : null };
 }
-export function setLayerDefaults({ layers, level }) { write({ layers, level }); }
+export function setLayerDefaults({ layers, level, overlays }) { write({ layers, level, overlays }); }

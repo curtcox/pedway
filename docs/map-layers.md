@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0–L1 done** (2026-11-24); L2–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
+Status: **L0–L2 done** (2026-11-24); L3–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -224,7 +224,7 @@ rather than drawing more.
 | --- | --- | --- |
 | **L0** ✓ | Measuring spike (`scripts/base-survey.mjs`, `scripts/base-survey-draw.mjs`): fetch the six base layers and `intersections` for the proposed box, simplify, and report counts, raw and gzip sizes, and canvas draw time under Pixel 7 emulation with 4× CPU throttling | A table in this file fixes the box, the simplification, any zoom split, and whether the base is precached. **Decision gate** for L4–L5. |
 | **L1** ✓ | Layer registry and panes, with no visible change: the tile layer and data layers move into `src/map-layers.js`; lazy loading; the Layers panel is built from the registry, in sections; "made with a newer version" error | Every existing browser test passes; a unit test checks registry order and keys against `doc.js`. |
-| **L2** | Lat/long, geohash and USNG overlays, the readout, and `map.overlays` in links | Overlays round-trip in links in all three browsers; unit tests check line positions against known values (for example, a USNG 1 km line against PROJ); axe passes with the readout open. |
+| **L2** ✓ | Lat/long, geohash and USNG overlays, the readout, and `map.overlays` in links | Overlays round-trip in links in all three browsers; unit tests check line positions against known values (for example, a USNG 1 km line against PROJ); axe passes with the readout open. |
 | **L3** | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
 | **L4** | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
 | **L5** | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
@@ -375,3 +375,30 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
   (`#layers-transit`, `#layers-places`). The raster tile layer is unchanged until L5.
 * An unknown field in a link or file now adds "If this map was made with a newer
   version of Pedway Tools, reload the page to update."
+
+### L2 (2026-11-24)
+
+* `src/overlays/grids.js` computes each overlay's lines and labels from the view
+  alone (`graticule`, `geohashGrid`, `usngGrid`, `addressGrid`), so
+  `tests/grids.test.js` checks them without a browser: lines fall on multiples
+  of the step, USNG lines keep one easting or northing in UTM, geohash cells
+  match what `decodeGeohash` returns, and grid lines keep one address number.
+  Steps are chosen so lines are at least 70 px apart.
+* The address-grid lines (from the calibrated model, labelled `800 W · Halsted
+  St`) came forward from L3, since they need no data. L3 adds the
+  `intersections` data, corner labels and exact corners.
+* `src/overlays/overlays.js` draws lines in `coords-lines` (one SVG renderer,
+  padded by half the view so pans do not uncover line ends) and labels in
+  `coords-labels`, redrawing on `moveend`. Each overlay's edge labels get their
+  own row below the search box and a column right of the zoom buttons, so they
+  do not sit on the controls or on each other. The USNG zone and 100 km square
+  lead the first top label (`16T DM 48`) instead of a corner label, which
+  collided with the location button on phones.
+* `src/overlays/readout.js` is a bottom-left control: the map centre (marked by
+  a cross) in each system that is on, with Copy buttons, and a polite live
+  region updated when the map settles. With a mouse it follows the pointer,
+  except over the map's controls.
+* `map.overlays` (`latlon`, `geohash`, `usng`, `grid`) is in links, GeoJSON
+  exports and the viewer's defaults for new maps.
+  `tests/browser/overlays.spec.js` covers drawing, the readout, links, defaults,
+  redraws on moving, and axe on the readout and panel.

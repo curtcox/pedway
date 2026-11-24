@@ -92,5 +92,14 @@ test('the document’s layers are exactly the map’s layers, with the same defa
 });
 
 test('an unknown field says the map may come from a newer version', () => {
-  assert.throws(() => type.normalize({ src: '', map: { overlays: {} } }), /Unknown map field: overlays\. If this map was made with a newer version/);
+  assert.throws(() => type.normalize({ src: '', map: { compass: {} } }), /Unknown map field: compass\. If this map was made with a newer version/);
+});
+
+test('coordinate overlays are off by default, round-trip, and accept only known switches', () => {
+  assert.deepEqual(type.normalize({ src: '' }).map.overlays, { latlon: false, geohash: false, usng: false, grid: false });
+  const doc = type.normalize({ src: '', map: { overlays: { usng: true } } });
+  assert.deepEqual(doc.map.overlays, { latlon: false, geohash: false, usng: true, grid: false });
+  assert.equal(type.isDefault(doc), false);
+  assert.throws(() => type.normalize({ src: '', map: { overlays: { mgrs: true } } }), /Unknown overlay field: mgrs/);
+  assert.throws(() => type.normalize({ src: '', map: { overlays: { usng: 1 } } }), /Overlay usng must be true or false/);
 });

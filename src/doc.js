@@ -1,11 +1,14 @@
 // The shareable map document: everything a link carries.
 import { encodeGeohash, decodeGeohash, GEOHASH_PATTERN } from './geo/geohash.js';
 import { LOOP_CENTER, DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, CHICAGO_BOUNDS } from './map-defaults.js';
+import { OVERLAY_DEFAULTS } from './map-layers.js';
 
 export const LAYERS = Object.freeze({
   pedway: true, access: true, cta: true, metra: true, restroom: true,
   food: false, store: false, museum: false, park: false,
 });
+// Coordinate overlays: latitude/longitude, geohash, USNG, and the address grid with corners.
+export const OVERLAYS = OVERLAY_DEFAULTS;
 export const LEVELS = Object.freeze(['both', 'pedway', 'street']);
 export const ICONS = Object.freeze(['pin', 'star', 'door', 'train', 'food', 'restroom', 'info', 'flag']);
 export const DEFAULT_PIN = Object.freeze({ label: '', icon: 'pin', color: '#c0392b', md: '' });
@@ -31,7 +34,7 @@ function text(value, max, what) {
 }
 
 export function defaultMap() {
-  return { view: { c: [...LOOP_CENTER], z: DEFAULT_ZOOM }, level: 'both', layers: { ...LAYERS }, pins: [], gps: false };
+  return { view: { c: [...LOOP_CENTER], z: DEFAULT_ZOOM }, level: 'both', layers: { ...LAYERS }, overlays: { ...OVERLAYS }, pins: [], gps: false };
 }
 
 function normalizeView(view = {}) {
@@ -44,13 +47,14 @@ function normalizeView(view = {}) {
   return { c: [round(c[0], 5), round(c[1], 5)], z };
 }
 
-function normalizeLayers(layers = {}) {
-  if (!plain(layers)) fail('Layers must be an object.');
-  only(layers, Object.keys(LAYERS), 'layer');
-  const result = { ...LAYERS };
-  for (const [key, value] of Object.entries(layers)) {
-    if (typeof value !== 'boolean') fail(`Layer ${key} must be true or false.`);
-    result[key] = value;
+// A record of on/off switches: only known keys, each true or false, defaults filled in.
+function normalizeSwitches(value = {}, defaults, what) {
+  if (!plain(value)) fail(`${what[0].toUpperCase()}${what.slice(1)}s must be an object.`);
+  only(value, Object.keys(defaults), what);
+  const result = { ...defaults };
+  for (const [key, on] of Object.entries(value)) {
+    if (typeof on !== 'boolean') fail(`${what[0].toUpperCase()}${what.slice(1)} ${key} must be true or false.`);
+    result[key] = on;
   }
   return result;
 }
@@ -70,7 +74,7 @@ export function normalizePin(pin) {
 
 export function normalizeMap(map = {}) {
   if (!plain(map)) fail('Map must be an object.');
-  only(map, ['view', 'level', 'layers', 'pins', 'gps'], 'map');
+  only(map, ['view', 'level', 'layers', 'overlays', 'pins', 'gps'], 'map');
   const level = map.level ?? 'both';
   if (!LEVELS.includes(level)) fail('Level must be both, pedway or street.');
   const pins = map.pins ?? [];
@@ -79,7 +83,8 @@ export function normalizeMap(map = {}) {
   const normalized = pins.map(normalizePin), ids = new Set(normalized.map(pin => pin.id));
   if (ids.size !== normalized.length) fail('Pin ids must be unique.');
   if (map.gps !== undefined && typeof map.gps !== 'boolean') fail('gps must be true or false.');
-  return { view: normalizeView(map.view), level, layers: normalizeLayers(map.layers), pins: normalized, gps: map.gps ?? false };
+  return { view: normalizeView(map.view), level, layers: normalizeSwitches(map.layers, LAYERS, 'layer'),
+    overlays: normalizeSwitches(map.overlays, OVERLAYS, 'overlay'), pins: normalized, gps: map.gps ?? false };
 }
 
 export const type = Object.freeze({

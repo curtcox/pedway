@@ -137,6 +137,8 @@ export function findStreet(text) {
 }
 
 export const streetLabel = street => `${street.name} ${street.suffix}`;
+/** The known street on a grid line: runs 'ns' with that east/west number, or 'ew' with that north/south number. */
+export const streetOnLine = (runs, at) => STREETS.find(([, , r, n]) => r === runs && n === at)?.slice(0, 2).join(' ') ?? null;
 export function gridNumberLabel(value, positive, negative) {
   const n = Math.round(Math.abs(value));
   return n === 0 ? '0' : `${n} ${value < 0 ? negative : positive}`;
