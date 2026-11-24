@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import { stage, SHIP, SKIP, CACHE_PREFIX } from '../scripts/stage.mjs';
+import { DATA_DIR, currentId, readSnapshot, writeSnapshot } from '../scripts/snapshots.mjs';
 import { LOOP_CENTER, CHICAGO_BOUNDS, DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM } from '../src/map-defaults.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -58,7 +59,9 @@ test('staging copies the allowlist and leaves out tooling', async () => {
     vm.runInNewContext(await fs.readFile(path.join(target, 'offline-assets.js'), 'utf8'), sandbox);
     const assets = sandbox.OfflineAssets;
     assert.ok(assets.version.startsWith(CACHE_PREFIX + '-'));
-    for (const file of ['index.html', 'style.css', 'src/app.js', 'src/offline.js', 'data/pedway.geojson', 'vendor/leaflet-1.9.4/leaflet.js',
+    const { manifest } = await readSnapshot(DATA_DIR, await currentId());
+    for (const file of ['index.html', 'style.css', 'src/app.js', 'src/offline.js', 'data/current.json', `data/snapshots/${manifest.id}.json`,
+      manifest.files.pedway.path.replace(/^/, 'data/'), 'vendor/leaflet-1.9.4/leaflet.js',
       'vendor/leaflet-1.9.4/images/marker-icon.png', 'vendor/fragment-kit-v0.5.0/src/offline/sw-core.js', 'vendor/fragment-kit-v0.5.0/vendor/lz-string-1.5.0.mjs']) {
       assert.ok(assets.assets.includes(file), file);
     }
@@ -71,6 +74,47 @@ test('staging copies the allowlist and leaves out tooling', async () => {
     await fs.rm(path.join(root, out), { recursive: true, force: true });
   }
 });
+
+test('staging ships one data snapshot: the current one or the one asked for', async () => {
+  const out = path.relative(root, await fs.mkdtemp(path.join(root, '.stage-test-')));
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pedway-stage-data-'));
+  try {
+    const { manifest, texts } = await readSnapshot(DATA_DIR, await currentId());
+    await writeSnapshot(dataDir, texts, { id: manifest.id });
+    const poi = JSON.parse(texts.poi);
+    poi.features.pop();
+    const newer = await writeSnapshot(dataDir, { ...texts, poi: JSON.stringify(poi) }, { id: '2026-12-03' });
+    const listing = async () => (await walkData(path.join(root, out, 'data'))).sort();
+
+    await stage(out, { dataDir });
+    assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, out, 'data/current.json'), 'utf8')).snapshot, '2026-12-03');
+    assert.deepEqual(await listing(), ['current.json', 'snapshots/2026-12-03.json', ...Object.values(newer.files).map(f => f.path)].sort());
+
+    await stage(out, { dataDir, data: manifest.id });
+    assert.equal(JSON.parse(await fs.readFile(path.join(root, out, 'data/current.json'), 'utf8')).snapshot, manifest.id);
+    assert.ok(!(await listing()).includes('snapshots/2026-12-03.json'), 'other snapshots stay out of the site');
+
+    await assert.rejects(stage(out, { dataDir, data: '2020-01-01' }), /no data snapshot 2020-01-01/);
+    // A snapshot this app cannot read is refused, and the last staged site is left alone.
+    const future = { ...newer, id: '2030-01-01', schema: 99 };
+    await fs.writeFile(path.join(dataDir, 'snapshots/2030-01-01.json'), JSON.stringify(future));
+    await fs.writeFile(path.join(root, out, 'marker'), '');
+    await assert.rejects(stage(out, { dataDir, data: '2030-01-01' }), /uses data schema 99/);
+    await fs.access(path.join(root, out, 'marker'));
+  } finally {
+    await fs.rm(path.join(root, out), { recursive: true, force: true });
+    await fs.rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+async function walkData(dir, prefix = '') {
+  const found = [];
+  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) found.push(...await walkData(path.join(dir, entry.name), `${prefix}${entry.name}/`));
+    else found.push(prefix + entry.name);
+  }
+  return found;
+}
 
 test('staging refuses to write outside the repository', async () => {
   await assert.rejects(stage(os.tmpdir()), /subfolder/);

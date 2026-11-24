@@ -1,6 +1,7 @@
 # Data history plan
 
-Status: **proposal, not started** (2026-11-24). It follows M7 in [PLAN.md](../PLAN.md).
+Status: **H1 done** (2026-11-24); H2–H4 proposed. It follows M7 in [PLAN.md](../PLAN.md).
+See [H1 as built](#h1-as-built) at the end.
 
 ## Goal
 
@@ -20,7 +21,7 @@ App code and data should change **independently**. A data refresh should not
 need an app change, an app change should not need fresh data, and either one
 should roll back on its own.
 
-## Where things stand today
+## Where things stood before H1
 
 * `data/*.geojson` is overwritten in place by each refresh. Older data exists
   only in git history, tied to whichever app commit it shipped with.
@@ -274,3 +275,36 @@ order. H4 waits on PLAN.md §8.1.
 2. How many months HashBin should keep, once its price is known.
 3. Whether to offer `?data=<id>` for viewing older data in the browser, or keep
    history for builds only.
+
+## H1 as built
+
+* `src/data-snapshot.js` holds the formats and the browser loader;
+  `scripts/snapshots.mjs` reads, writes and lists snapshots on disk;
+  `DATA_SCHEMA = { version: 1, accepts: [1] }` is in `src/data-layers.js`.
+* The first snapshot is **2026-11-24**: the files that were in `data/` at commit
+  `bbb170c`, moved into `data/store/` byte for byte (same SHA-256). It has no
+  `osmBase` because the Overpass timestamps of that build were not kept. Earlier
+  data (2026-11-23, before places existed) was not imported. It lacks `poi`, so
+  schema 1 could not read it. It is still in git history at `2e9b9e5`.
+* Snapshot ids are the build date in UTC, with `-2`, `-3`… for more builds that
+  day. A build whose files all match the current snapshot writes nothing.
+  `osmBase` is the oldest `timestamp_osm_base` among the Overpass replies used.
+* Manifests are pretty-printed JSON. The `path` of each file is *derived* from
+  layer and hash, and a manifest giving any other path is rejected. So a
+  manifest can never point the browser or stage outside `store/`.
+* The browser fetches `current.json` with `cache: 'no-cache'`, because it
+  changes per deployment. Manifests and store files are immutable. Hashes are
+  checked wherever `crypto.subtle` exists (HTTPS and localhost). On plain-HTTP
+  LAN testing they are skipped. A file that fails its hash is left out and the
+  status bar says so.
+* About shows the snapshot id and its OpenStreetMap date.
+* `check-data` checks `current.json`, every manifest, every store file (hash,
+  and content rules for snapshots this app reads, each distinct file once),
+  that every `previous` exists, and that no store file is unreferenced.
+  Snapshots on a schema this app does not read are warnings, unless current.
+* Commands: `npm run data:list`, `npm run data:use -- <id>` (move the pointer, e.g. to roll
+  back), `npm run stage -- --data <id>`, `node scripts/data-diff.mjs [from to]`.
+* The refresh workflow detects new (untracked) files, names the PR after the
+  snapshot, and copies its additions over the newest main. `data-tag.yml` tags
+  `data-<id>` when `current.json` first names a snapshot on main.
+

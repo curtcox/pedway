@@ -1,16 +1,19 @@
-// Builds data/*.geojson from OpenStreetMap through Overpass. Run by hand or
-// from the monthly data-refresh workflow, then review the diff:
-//   node scripts/build-data.mjs            # writes data/
+// Builds a new data snapshot from OpenStreetMap through Overpass and points
+// data/current.json at it (see docs/data-history.md). Run by hand or from the
+// monthly data-refresh workflow, then review the diff:
+//   node scripts/build-data.mjs            # adds data/snapshots/<today>.json and its store files
 //   node scripts/build-data.mjs --cache d  # also keeps raw Overpass replies in d/
-//   node scripts/build-data.mjs --only poi # rebuild one file; poi uses the committed Pedway
+//   node scripts/build-data.mjs --only poi # rebuild the places; other files come from the current snapshot
+// Nothing is written when OpenStreetMap's answer matches the current snapshot.
 // The browser never calls Overpass; it only loads the committed files.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { CHICAGO_BOUNDS } from '../src/map-defaults.js';
+import { DATA_DIR, currentId, readSnapshot, writeSnapshot, geojsonText } from './snapshots.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const OUT = path.join(root, 'data');
 const ATTRIBUTION = '© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)';
 const LOOP = '41.868,-87.645,41.895,-87.615';
 const [[S, W], [N, E]] = CHICAGO_BOUNDS;
@@ -20,9 +23,16 @@ const ATTEMPTS = 9;
 const option = name => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null;
 const cacheDir = option('--cache'), only = option('--only');
 
+// The oldest OpenStreetMap timestamp among the replies used, recorded as the snapshot's osmBase.
+let osmBase;
+const noteBase = json => {
+  const base = json?.osm3s?.timestamp_osm_base;
+  if (typeof base === 'string' && (!osmBase || base < osmBase)) osmBase = base;
+  return json;
+};
 async function overpass(name, query) {
   if (cacheDir) {
-    try { return JSON.parse(await fs.readFile(path.join(cacheDir, `${name}.json`), 'utf8')); } catch { /* fetch it */ }
+    try { return noteBase(JSON.parse(await fs.readFile(path.join(cacheDir, `${name}.json`), 'utf8'))); } catch { /* fetch it */ }
   }
   let lastError;
   // Public Overpass servers are often busy: back off patiently (about 9 minutes in all) rather than hammer them.
@@ -33,7 +43,7 @@ async function overpass(name, query) {
       if (!response.ok) throw new Error(`${endpoint} answered ${response.status}`);
       const json = await response.json();
       if (cacheDir) { await fs.mkdir(cacheDir, { recursive: true }); await fs.writeFile(path.join(cacheDir, `${name}.json`), JSON.stringify(json)); }
-      return json;
+      return noteBase(json);
     } catch (error) {
       lastError = error;
       console.error(`${name}: ${error.message}; retrying`);
@@ -262,12 +272,18 @@ const CTA_LINES = ['Red', 'Blue', 'Brown', 'Green', 'Orange', 'Pink', 'Purple', 
 const ctaLine = tags => CTA_LINES.find(line => new RegExp(`\\b${line}\\b`, 'i').test(`${tags.name ?? ''} ${tags.ref ?? ''}`));
 const metraLine = tags => (tags.ref || tags.name?.replace(/^Metra\s*/i, '').replace(/\s*[:(].*$/, '').replace(/\s*Line$/i, '').trim()) || null;
 
+function builderCommit() {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 12);
+  try { return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(); } catch { return undefined; }
+}
+
 async function main() {
   const built = {};
-  let vertices;
+  let vertices, kept = {};
+  if (only && only !== 'poi') throw new Error('--only takes poi, or leave it out to rebuild every file.');
   if (only === 'poi') {
-    const committed = JSON.parse(await fs.readFile(path.join(OUT, 'pedway.geojson'), 'utf8'));
-    vertices = committed.features.flatMap(f => f.geometry.coordinates.map(([lon, lat]) => [lat, lon]));
+    ({ texts: kept } = await readSnapshot(DATA_DIR, await currentId()));
+    vertices = JSON.parse(kept.pedway).features.flatMap(f => f.geometry.coordinates.map(([lon, lat]) => [lat, lon]));
   } else {
     const raw = await overpass('pedway', PEDWAY_QUERY);
     let pedway;
@@ -277,21 +293,17 @@ async function main() {
     built.metra = buildStations('metra', (await overpass('metra', stationQuery('Metra'))).elements, vertices, metraLine);
   }
   built.poi = buildPoi((await overpass('poi', POI_QUERY)).elements, vertices);
-  const files = only ? { [only]: built[only] } : built;
-  if (!Object.values(files).every(Boolean)) throw new Error(`--only takes poi, or nothing to rebuild every file.`);
-  await fs.mkdir(OUT, { recursive: true });
-  for (const [file, data] of Object.entries(files)) {
-    // One feature per line keeps monthly diffs readable.
-    const body = `{"type":"FeatureCollection","name":${JSON.stringify(data.name)},"attribution":${JSON.stringify(data.attribution)},"features":[\n${data.features.map(f => JSON.stringify(f)).join(',\n')}\n]}\n`;
-    await fs.writeFile(path.join(OUT, `${file}.geojson`), body);
-    console.log(`${file}.geojson: ${data.features.length} features, ${(body.length / 1024).toFixed(0)} KB`);
-  }
+  const texts = { ...kept, ...Object.fromEntries(Object.entries(built).map(([key, data]) => [key, geojsonText(data)])) };
+  for (const [key, data] of Object.entries(built)) console.log(`${key}: ${data.features.length} features, ${(texts[key].length / 1024).toFixed(0)} KB`);
   if (built.pedway) {
     const km = built.pedway.features.reduce((sum, f) => sum + lengthOf(f.geometry.coordinates.map(([lon, lat]) => [lat, lon])), 0) / 1000;
     console.log(`Pedway length: ${km.toFixed(1)} km`);
   }
   const counts = Object.groupBy(built.poi.features, f => f.properties.category);
   console.log('Places: ' + Object.entries(counts).map(([category, list]) => `${category} ${list.length}`).join(', '));
+  const manifest = await writeSnapshot(DATA_DIR, texts, { osmBase, attribution: ATTRIBUTION,
+    builder: { commit: builderCommit(), script: 'scripts/build-data.mjs' + (only ? ` --only ${only}` : '') } });
+  console.log(manifest ? `Wrote snapshot ${manifest.id}; data/current.json now names it.` : 'OpenStreetMap data is unchanged; no new snapshot.');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) await main();

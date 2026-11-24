@@ -283,6 +283,7 @@ menuButton('Export…', 'export-open', () => files.openExport());
 
 const offline = startOffline({ shell, setStatus, menuButton });
 const about = createAbout();
+void data.loaded.then(() => about.setData(data.snapshot));
 menuButton('About', 'about-open', () => about.open());
 await navigate();
 

@@ -401,6 +401,7 @@ the project.
 1. HashBin publishing needs a registered client ID. Until there is one, long
    maps fall back to file export.
 2. Custom domain, or `curtcox.github.io/pedway`? The default is the latter.
-3. Keeping data history so any app version can be built with any compatible
-   snapshot, from the repo alone or the repo plus HashBin: proposed in
-   [docs/data-history.md](docs/data-history.md), with size projections.
+3. Data history, so any app version can be built with any compatible snapshot
+   from the repo alone or the repo plus HashBin: [docs/data-history.md](docs/data-history.md).
+   H1 (content-addressed snapshots, schema version, `stage --data`) is done;
+   H2 (`build-at.mjs`), H3 (raw replies in Releases) and H4 (HashBin) remain.

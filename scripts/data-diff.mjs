@@ -1,13 +1,11 @@
-// Summarises how data/*.geojson changed against git HEAD, as Markdown for the
+// Summarises how one data snapshot differs from another, as Markdown for the
 // data-refresh pull request:
-//   node scripts/data-diff.mjs > summary.md
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+//   node scripts/data-diff.mjs > summary.md            # current snapshot against the one before it
+//   node scripts/data-diff.mjs <from-id> <to-id>
 import { fileURLToPath } from 'node:url';
 import { DATA_LAYERS } from '../src/data-layers.js';
+import { DATA_DIR, currentId, readManifest, readSnapshot } from './snapshots.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
 const SHOWN = 15;
 
 const label = feature => feature.properties?.name || feature.properties?.kind || feature.id;
@@ -28,8 +26,8 @@ function names(list) {
 }
 
 /** Markdown for a set of { file, diff } entries. */
-export function summarize(entries) {
-  const lines = ['Monthly rebuild of `data/` from OpenStreetMap. Review before merging: OSM edits can remove or move Pedway corridors.', '',
+export function summarize(entries, { from, to } = {}) {
+  const lines = [`Monthly rebuild of the map data from OpenStreetMap${to ? `: snapshot **${to}**${from ? `, compared with ${from}` : ''}` : ''}. Review before merging: OSM edits can remove or move Pedway corridors.`, '',
     '| File | Before | After | Added | Removed | Changed |', '| --- | ---: | ---: | ---: | ---: | ---: |'];
   for (const { file, diff } of entries) lines.push(`| ${file} | ${diff.before} | ${diff.after} | ${diff.added.length} | ${diff.removed.length} | ${diff.changed.length} |`);
   for (const { file, diff } of entries) {
@@ -45,14 +43,12 @@ export function summarize(entries) {
 }
 
 async function main() {
-  const entries = [];
-  for (const { file } of DATA_LAYERS) {
-    let before = '';
-    try { before = execFileSync('git', ['show', `HEAD:data/${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }); } catch { /* new file */ }
-    const after = await fs.readFile(path.join(root, 'data', file), 'utf8').catch(() => '');
-    entries.push({ file, diff: diffFeatures(before, after) });
-  }
-  process.stdout.write(summarize(entries));
+  let [from, to] = process.argv.slice(2);
+  to ??= await currentId();
+  from ??= (await readManifest(DATA_DIR, to)).previous;
+  const after = await readSnapshot(DATA_DIR, to), before = from ? await readSnapshot(DATA_DIR, from) : { texts: {} };
+  const entries = DATA_LAYERS.map(({ key, file }) => ({ file, diff: diffFeatures(before.texts[key] ?? '', after.texts[key] ?? '') }));
+  process.stdout.write(summarize(entries, { from, to }));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) await main();

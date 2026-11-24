@@ -150,3 +150,30 @@ test('the layers panel scrolls on a short map and closes when the map is tapped'
   await expect(page.locator('#layers-panel')).toBeHidden();
   await expect(page.locator('#layers-open')).toHaveAttribute('aria-expanded', 'false');
 });
+
+test('data loads from the current snapshot, and a file that fails its hash is left out', async ({ page }) => {
+  // Serve a tampered CTA file: it must be refused while the other layers still load.
+  await page.route('**/data/store/cta/*.geojson', async route => {
+    const response = await route.fetch();
+    const data = await response.json();
+    data.features[0].properties.name = 'Tampered';
+    await route.fulfill({ response, body: JSON.stringify(data) });
+  });
+  await open(page);
+  const counts = await loaded(page);
+  expect(counts.cta).toBeUndefined();
+  expect(counts.pedway).toBeGreaterThan(100);
+  await expect(page.locator('#app-status')).toContainText('could not be loaded');
+  const snapshot = await page.evaluate(() => pedway.data.snapshot);
+  expect(snapshot.id).toMatch(/^\d{4}-\d{2}-\d{2}/);
+  expect(Object.keys(snapshot.files)).toEqual(['pedway', 'access', 'cta', 'metra', 'poi']);
+});
+
+test('the About dialog names the data snapshot', async ({ page }) => {
+  await open(page);
+  await loaded(page);
+  const id = await page.evaluate(() => pedway.data.snapshot.id);
+  await page.locator('.fk-more').click();
+  await page.locator('#fk-more-drawer #about-open').click();
+  await expect(page.locator('#about-data')).toContainText(`data snapshot ${id}`);
+});

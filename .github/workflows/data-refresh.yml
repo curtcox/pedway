@@ -1,6 +1,7 @@
 name: Data refresh
-# Rebuilds data/*.geojson from OpenStreetMap once a month and opens (or updates)
-# a pull request with the diff. Data never changes on main without review.
+# Builds a new data snapshot from OpenStreetMap once a month and opens (or
+# updates) a pull request that adds it and moves data/current.json to it. Data
+# never changes on main without review. data-tag.yml tags it once merged.
 # Needs Settings → Actions → General → "Allow GitHub Actions to create and
 # approve pull requests".
 on:
@@ -30,26 +31,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- data; then
+          # A refresh only adds files (store blobs and a snapshot manifest) and rewrites
+          # data/current.json, so look for untracked files too.
+          if [ -z "$(git status --porcelain -- data)" ]; then
             echo "OpenStreetMap data is unchanged."
             exit 0
           fi
+          id=$(node -p "require('./data/current.json').snapshot")
           node scripts/data-diff.mjs > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Branch from the newest main, not the commit this run started on: if main moved
           # (say, a workflow edit), an older base would look like a workflow change, which
-          # the workflow token may not push.
-          git stash push --quiet -- data
+          # the workflow token may not push. Snapshots are add-only, so copying ours over
+          # main's data keeps anything main gained meanwhile.
+          cp -R data "$RUNNER_TEMP/data"
+          git checkout -- data && git clean -fdq -- data
           git fetch --quiet origin main
           git switch -C data-refresh FETCH_HEAD
-          git checkout stash@{0} -- data
+          cp -R "$RUNNER_TEMP/data/." data/
           git add data
-          git commit -m "Refresh data from OpenStreetMap ($(date -u +%Y-%m-%d))"
+          git commit -m "Add data snapshot $id from OpenStreetMap"
           git push --force origin data-refresh
           if [ "$(gh pr view data-refresh --json state --jq .state 2>/dev/null)" = OPEN ]; then
-            gh pr edit data-refresh --body-file "$RUNNER_TEMP/summary.md"
+            gh pr edit data-refresh --title "Data snapshot $id from OpenStreetMap" --body-file "$RUNNER_TEMP/summary.md"
           else
-            gh pr create --head data-refresh --base main --title 'Refresh data from OpenStreetMap' --body-file "$RUNNER_TEMP/summary.md"
+            gh pr create --head data-refresh --base main --title "Data snapshot $id from OpenStreetMap" --body-file "$RUNNER_TEMP/summary.md"
           fi

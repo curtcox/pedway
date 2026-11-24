@@ -14,7 +14,9 @@
     "stage": "node scripts/stage.mjs _site",
     "data:build": "node scripts/build-data.mjs",
     "data:check": "node scripts/check-data.mjs",
-    "serve:site": "node scripts/stage.mjs _site && python3 -m http.server --bind 127.0.0.1 --directory _site"
+    "serve:site": "node scripts/stage.mjs _site && python3 -m http.server --bind 127.0.0.1 --directory _site",
+    "data:list": "node scripts/snapshots.mjs",
+    "data:use": "node scripts/snapshots.mjs use"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

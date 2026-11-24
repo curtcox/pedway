@@ -1,0 +1,44 @@
+{
+  "format": "pedway-data-snapshot",
+  "version": 1,
+  "id": "2026-11-24",
+  "schema": 1,
+  "built": "2026-11-24T12:22:00.000Z",
+  "builder": {
+    "commit": "c6c75f0",
+    "script": "scripts/build-data.mjs"
+  },
+  "attribution": "© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)",
+  "files": {
+    "pedway": {
+      "path": "store/pedway/e9c1b1c9416ce4057389061ebe613c30644a24d7786d94f7acc2ded7806bdb73.geojson",
+      "sha256": "e9c1b1c9416ce4057389061ebe613c30644a24d7786d94f7acc2ded7806bdb73",
+      "bytes": 83106,
+      "features": 333
+    },
+    "access": {
+      "path": "store/access/c79aed01fe10defa8aa30ec128dfcd057e5fadb59c9b4fb7a983352679e65c5a.geojson",
+      "sha256": "c79aed01fe10defa8aa30ec128dfcd057e5fadb59c9b4fb7a983352679e65c5a",
+      "bytes": 20805,
+      "features": 122
+    },
+    "cta": {
+      "path": "store/cta/e15410feef180cdd295667aeed3ca39cec163529080774cda23113999514c5eb.geojson",
+      "sha256": "e15410feef180cdd295667aeed3ca39cec163529080774cda23113999514c5eb",
+      "bytes": 28660,
+      "features": 143
+    },
+    "metra": {
+      "path": "store/metra/23779f96d5f4d70de8360a9dde07faa79f186597abc911e7c144d89248bde1f3.geojson",
+      "sha256": "23779f96d5f4d70de8360a9dde07faa79f186597abc911e7c144d89248bde1f3",
+      "bytes": 25722,
+      "features": 129
+    },
+    "poi": {
+      "path": "store/poi/bf9c0f77005435550fab6cac5b6061d7cc244f3de310d9a52dfdd2d3824e97c1.geojson",
+      "sha256": "bf9c0f77005435550fab6cac5b6061d7cc244f3de310d9a52dfdd2d3824e97c1",
+      "bytes": 180571,
+      "features": 796
+    }
+  }
+}

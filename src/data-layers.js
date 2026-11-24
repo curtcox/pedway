@@ -1,6 +1,11 @@
 // The map's data layers: which file each comes from and what its features may hold.
 // Shared by the browser and by scripts/check-data.mjs.
 const text = { type: 'string' }, yesNo = { values: ['yes', 'no', 'limited'] };
+// The data schema these rules define. Bump `version` for an incompatible change (a
+// renamed, removed or re-typed property, or a new required one); additions keep it.
+// `accepts` lists the schemas this app can read: keep the previous one until
+// data/current.json has moved past it, so app and data never have to change together.
+export const DATA_SCHEMA = Object.freeze({ version: 1, accepts: Object.freeze([1]) });
 // poi.geojson holds every place category; each one is its own layer on the map, in this order.
 // minFeatures guards against a category silently vanishing from OpenStreetMap's answer.
 export const POI_CATEGORIES = Object.freeze([

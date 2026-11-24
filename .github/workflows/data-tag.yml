@@ -1,0 +1,25 @@
+name: Data tag
+# Tags each data snapshot when data/current.json first names it on main, as
+# data-<id>, so `git checkout data-<id>` finds the commit that brought it in.
+on:
+  push:
+    branches: [main]
+    paths: [data/current.json]
+permissions:
+  contents: read
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Tag the current snapshot if it is new
+        run: |
+          id=$(node -p "require('./data/current.json').snapshot")
+          if git ls-remote --exit-code --tags origin "refs/tags/data-$id" >/dev/null; then
+            echo "data-$id is already tagged."
+            exit 0
+          fi
+          git tag "data-$id" "$GITHUB_SHA"
+          git push origin "refs/tags/data-$id"

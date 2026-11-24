@@ -15,6 +15,7 @@ function list(items) {
 
 export function createAbout() {
   const ui = createDialog('About Pedway Tools', { id: 'about-dialog' });
+  const dataLine = element('p', 'Loading data…', { id: 'about-data' });
   ui.body.classList.add('about-body');
   ui.body.append(
     element('p', 'Maps for getting around the Chicago Pedway, the buildings it connects and the stations beside it. Add pins and notes, then share the map as a link: everything on it travels in the link itself.'),
@@ -22,6 +23,7 @@ export function createAbout() {
     paragraph('The Pedway, entrances, stations and places come from ', link('OpenStreetMap', 'https://www.openstreetmap.org/copyright'),
       ' (© OpenStreetMap contributors, Open Database License) and are refreshed monthly after review. Map tiles are © OpenStreetMap contributors. '
       + 'The Pedway has no official map data, so some corridors, doors and hours may be out of date. Building hours decide which passages are open: check signs underground.'),
+    dataLine,
     paragraph('Spotted a mistake? Fix it on ', link('OpenStreetMap', 'https://www.openstreetmap.org/'), ' and it will reach this map at the next refresh.'),
     element('h3', 'Privacy'),
     list([
@@ -39,5 +41,12 @@ export function createAbout() {
     ]),
     paragraph('Source code and the plan: ', link('github.com/curtcox/pedway', 'https://github.com/curtcox/pedway'), '.'),
   );
+  /** Names the data snapshot on show, once it has loaded. */
+  ui.setData = manifest => {
+    if (!manifest) { dataLine.textContent = 'The map data could not be loaded.'; return; }
+    const date = text => new Date(text).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    dataLine.textContent = `This map shows data snapshot ${manifest.id}`
+      + (manifest.osmBase ? `, from OpenStreetMap as of ${date(manifest.osmBase)}.` : manifest.built ? `, built ${date(manifest.built)}.` : '.');
+  };
   return ui;
 }

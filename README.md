@@ -15,9 +15,12 @@ npm test                 # unit tests
 npm run check            # Fragment Kit static checks and vendor integrity
 npx playwright install chromium firefox webkit
 npm run test:browser     # needs `npm run serve` running
-npm run data:build       # rebuild data/*.geojson from OpenStreetMap (review the diff)
-npm run data:check       # validate data/*.geojson
-node scripts/data-diff.mjs  # summarise data/ changes against git HEAD
+npm run data:build       # build a new data snapshot from OpenStreetMap (review the diff)
+npm run data:check       # validate every data snapshot
+npm run data:list        # list snapshots; * marks the one data/current.json names
+npm run data:use -- 2026-11-24   # point data/current.json at another snapshot
+npm run stage -- --data 2026-11-24   # stage the site with a chosen snapshot
+node scripts/data-diff.mjs  # summarise the current snapshot against the one before it
 ```
 
 Vendored dependencies are pinned in `vendor/`: Fragment Kit v0.5.0, synced
@@ -29,9 +32,12 @@ deploys `_site` (built by `scripts/stage.mjs`) to GitHub Pages. Staging also wri
 site available offline. In the repository
 settings, set **Pages → Source** to **GitHub Actions** before the first deploy.
 
-`.github/workflows/data-refresh.yml` rebuilds `data/` from OpenStreetMap on the
-3rd of each month (or when run by hand) and opens a `data-refresh` pull request
-with a summary of what changed. It needs **Settings → Actions → General → Allow
+Map data lives in immutable, content-addressed snapshots under `data/`
+(`current.json` names the one in use; see [docs/data-history.md](docs/data-history.md)).
+Staging ships only that snapshot. `.github/workflows/data-refresh.yml` builds a
+new snapshot from OpenStreetMap on the 3rd of each month (or when run by hand)
+and opens a `data-refresh` pull request with a summary of what changed;
+`data-tag.yml` tags it `data-<id>` once merged. It needs **Settings → Actions → General → Allow
 GitHub Actions to create and approve pull requests**. Pull requests opened by the
 workflow do not start CI by themselves: run **CI and Pages** on the branch.
 

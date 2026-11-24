@@ -3,6 +3,7 @@ import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { DATA_LAYERS, MAP_LAYERS, POI_CATEGORIES } from './data-layers.js';
 import { LEVELS } from './doc.js';
 import { externalLinks } from './external.js';
+import { fetchSnapshot } from './data-snapshot.js';
 
 export const CTA_COLORS = Object.freeze({ Red: '#c60c30', Blue: '#00a1de', Brown: '#62361b', Green: '#009b3a',
   Orange: '#f9461c', Pink: '#e27ea6', Purple: '#522398', Yellow: '#f9e300' });
@@ -70,35 +71,38 @@ const STYLES = {
 };
 const POI_KEYS = new Set(POI_CATEGORIES.map(category => category.key));
 
-export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = new URL('../data/', import.meta.url) }) {
+export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = new URL('../data/', import.meta.url), snapshotId = null }) {
   const groups = new Map(MAP_LAYERS.map(layer => [layer.key, L.layerGroup()]));
   const features = new Map(DATA_LAYERS.map(layer => [layer.key, []]));
   let state = { layers: {}, level: 'both', gps: false };
-  // Each file loads on its own, so one that fails leaves the others on the map.
-  const loaded = Promise.allSettled(DATA_LAYERS.map(async layer => {
-    const response = await fetch(new URL(layer.file, baseUrl));
-    if (!response.ok) throw new Error(`${layer.file}: ${response.status}`);
-    const data = await response.json();
-    features.set(layer.key, data.features);
-    const style = STYLES[layer.key];
-    // Places go into one group per category; every other file is one group.
-    for (const target of MAP_LAYERS.filter(entry => entry.file === layer.key)) {
-      L.geoJSON(data, {
-        filter: feature => !target.category || feature.properties.category === target.category,
-        style: style.style,
-        pointToLayer: (feature, at) => L.circleMarker(at, { ...style.point(feature), bubblingMouseEvents: false }),
-        onEachFeature: (feature, shape) => {
-          shape.bindPopup(() => style.popup(feature), { maxWidth: 260 });
-          if (feature.properties.name) shape.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -6] });
-        },
-      }).addTo(groups.get(target.key));
-    }
-    return [layer.key, data.features.length];
-  })).then(results => {
+  // The data comes from the snapshot data/current.json names. Each file loads and is
+  // checked on its own, so one that fails leaves the others on the map.
+  let manifest = null;
+  const loaded = fetchSnapshot(baseUrl, { id: snapshotId }).then(snapshot => {
+    manifest = snapshot.manifest;
+    return Promise.allSettled(DATA_LAYERS.map(async layer => {
+      const data = await snapshot.files[layer.key];
+      features.set(layer.key, data.features);
+      const style = STYLES[layer.key];
+      // Places go into one group per category; every other file is one group.
+      for (const target of MAP_LAYERS.filter(entry => entry.file === layer.key)) {
+        L.geoJSON(data, {
+          filter: feature => !target.category || feature.properties.category === target.category,
+          style: style.style,
+          pointToLayer: (feature, at) => L.circleMarker(at, { ...style.point(feature), bubblingMouseEvents: false }),
+          onEachFeature: (feature, shape) => {
+            shape.bindPopup(() => style.popup(feature), { maxWidth: 260 });
+            if (feature.properties.name) shape.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -6] });
+          },
+        }).addTo(groups.get(target.key));
+      }
+      return [layer.key, data.features.length];
+    }));
+  }).then(results => {
     const failed = results.filter(result => result.status === 'rejected');
     if (failed.length) onError?.(failed[0].reason);
     return Object.fromEntries(results.filter(result => result.status === 'fulfilled').map(result => result.value));
-  });
+  }, error => { onError?.(error); return {}; });
 
   const visible = key => state.layers[key] && !(state.level === 'street' && (key === 'pedway' || key === 'access'))
     && !(POI_KEYS.has(key) && map.getZoom() < POI_MIN_ZOOM);
@@ -164,5 +168,5 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
     return { sync: () => control.sync?.() };
   })();
 
-  return { show, loaded, groups, features };
+  return { show, loaded, groups, features, get snapshot() { return manifest; } };
 }
