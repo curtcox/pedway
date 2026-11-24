@@ -23,6 +23,8 @@ npm run stage -- --data 2026-11-24   # stage the site with a chosen snapshot
 node scripts/data-diff.mjs  # summarise the current snapshot against the one before it
 node scripts/build-at.mjs --app <git ref> --data <id>   # build any app version with any snapshot into _build/
 npx playwright test --config tests/compat/playwright.config.js   # check the sites in _build/ run
+node scripts/base-survey.mjs        # measure the self-hosted base map layers (docs/map-layers.md, L0)
+node scripts/base-survey-draw.mjs   # time drawing them on an emulated, slowed-down phone
 ```
 
 Vendored dependencies are pinned in `vendor/`: Fragment Kit v0.5.0, synced
