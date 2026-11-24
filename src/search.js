@@ -21,7 +21,8 @@ export function matchNames(places, query, limit = 6) {
   return scored.sort((a, b) => a.score - b.score || a.place.name.localeCompare(b.place.name)).slice(0, limit).map(s => s.place);
 }
 
-export function createSearch(L, map, { places, onPick }) {
+// snapCorner(label, lat, lon) may move a corner the grid model placed to where the data has it.
+export function createSearch(L, map, { places, onPick, snapCorner = () => null }) {
   const form = element('form', null, { className: 'search-form', role: 'search' });
   const input = element('input', null, { type: 'search', id: 'search-input', placeholder: 'Search: address, corner, station, 41.88,-87.63…',
     'aria-label': 'Search for a place', autocomplete: 'off', enterkeyhint: 'search', 'aria-controls': 'search-results', 'aria-describedby': 'search-note' });
@@ -84,6 +85,7 @@ export function createSearch(L, map, { places, onPick }) {
     try {
       const found = parseLocation(query);
       if (!inChicago(found.lat, found.lon)) { show([]); return say('That place is outside the Chicago area.'); }
+      if (found.format === 'grid' && found.label?.includes('&')) Object.assign(found, snapCorner(found.label, found.lat, found.lon) ?? {});
       return pick({ name: found.label ?? query, detail: formatLocation(found.lat, found.lon, 'decimal'), lat: found.lat, lon: found.lon });
     } catch { /* not a location format; try names */ }
     // 2. Stations, entrances and pins by name.

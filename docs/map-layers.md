@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0–L2 done** (2026-11-24); L3–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
+Status: **L0–L4 done** (2026-11-24); L5–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -225,8 +225,8 @@ rather than drawing more.
 | **L0** ✓ | Measuring spike (`scripts/base-survey.mjs`, `scripts/base-survey-draw.mjs`): fetch the six base layers and `intersections` for the proposed box, simplify, and report counts, raw and gzip sizes, and canvas draw time under Pixel 7 emulation with 4× CPU throttling | A table in this file fixes the box, the simplification, any zoom split, and whether the base is precached. **Decision gate** for L4–L5. |
 | **L1** ✓ | Layer registry and panes, with no visible change: the tile layer and data layers move into `src/map-layers.js`; lazy loading; the Layers panel is built from the registry, in sections; "made with a newer version" error | Every existing browser test passes; a unit test checks registry order and keys against `doc.js`. |
 | **L2** ✓ | Lat/long, geohash and USNG overlays, the readout, and `map.overlays` in links | Overlays round-trip in links in all three browsers; unit tests check line positions against known values (for example, a USNG 1 km line against PROJ); axe passes with the readout open. |
-| **L3** | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
-| **L4** | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
+| **L3** ✓ | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
+| **L4** ✓ | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
 | **L5** | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
 | **L6** | `stage --self-contained` and its blocked-network test; About lists every external host and when it is used | The self-contained site passes the browser suite with all external requests blocked. |
 | **L7** (optional) | Measure PMTiles + protomaps-leaflet for a citywide self-hosted base; prototype the Pedway schematic view | A written go/no-go for each, with sizes. |
@@ -402,3 +402,35 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
   exports and the viewer's defaults for new maps.
   `tests/browser/overlays.spec.js` covers drawing, the readout, links, defaults,
   redraws on moving, and axe on the readout and panel.
+
+### L3 and L4 (2026-11-24)
+
+* `scripts/base-map.mjs` builds the base layers and `intersections` from Overpass
+  replies; `build-data.mjs` writes them into snapshots (`--only base` rebuilds
+  just them, `--only poi,base` both), and `base-survey.mjs` reuses it to measure.
+  The box is `BASE_BOX` in `src/map-defaults.js`.
+* Snapshot `2026-11-24-2` adds `water`, `green`, `rail`, `streets`, `buildings`,
+  `labels` and `intersections` to `2026-11-24`, whose other files it shares. It
+  was built from the L0 survey's cached replies.
+* All seven are `optional` in `DATA_LAYERS`: a snapshot may lack them, and
+  `stage`, `build-at` and `dataForApp` take an `optional` list, so the CI compat
+  job still runs this app on `2026-11-24`. The base layers are also `lazy`;
+  `intersections` loads at startup, as search and the readout use it.
+* `check-data` now takes several geometry types per layer, nested
+  coordinates (closed rings, two-point lines), `number` properties, a
+  per-layer `maxBytes` and a per-layer id pattern (labels are `l123`).
+* **Citywide corners are left out.** Outside the box the grid model still
+  names the nearest corner (within about 30 m in and near the Loop, 150 m at
+  worst). The 3,759 citywide major corners (96 KiB gzip) can be added as a
+  lazy file if that proves too rough.
+* `src/overlays/corners.js`: the readout's *Nearest* row names the nearest
+  data corner within 150 m (`Clark & Lake, 40 m NE`) and falls back to the grid
+  model. With the grid overlay on, major corners are labelled from zoom 14 and
+  all of them from 17, skipping any label that would overlap one already
+  placed. A searched corner (`Clark & Lake`) moves to where the data has it.
+* `pedway: true` buildings (151): the Cultural Center, Macy's, Daley Center,
+  City Hall, both Prudential Plazas, Aon Center, Illinois Center and Block 37
+  are right. Known rough edges: a few buildings by the river (Marina City, House
+  of Blues) are marked because OSM tags Riverwalk passages there as Pedway, and
+  the Thompson Center is not, because OSM's Pedway ways stop at Clark/Lake.
+* The staged site is now 4.0 MiB raw (about 0.8 MiB gzip), all of it precached.

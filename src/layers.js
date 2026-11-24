@@ -110,8 +110,11 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
   // Search, nearest-entrance and the counts the tests read need every data file now, whether
   // or not its layer is shown; layers with lazy: true load the first time they are shown.
   const eager = DATA_LAYERS.filter(layer => !layer.lazy);
-  const loaded = snapshot.then(() => Promise.allSettled(eager.map(async data => {
-    await Promise.all(MAP_LAYERS.filter(layer => layer.source.file === data.key).map(build));
+  // Optional files the snapshot does not have are skipped; files no layer draws (intersections) are just kept.
+  const loaded = snapshot.then(value => Promise.allSettled(eager.filter(data => !data.optional || value.has(data.key)).map(async data => {
+    const drawn = MAP_LAYERS.filter(layer => layer.source.file === data.key);
+    if (drawn.length) await Promise.all(drawn.map(build));
+    else features.set(data.key, (await value.file(data.key)).features);
     return [data.key, features.get(data.key).length];
   }))).then(results => {
     const failed = results.filter(result => result.status === 'rejected');

@@ -9,6 +9,7 @@ import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, OVERLAYS, LEVELS } from 
 import { createDataLayers, createPanes, POI_KINDS } from './layers.js';
 import { createOverlays } from './overlays/overlays.js';
 import { createReadout } from './overlays/readout.js';
+import { createCorners, drawCornerLabels } from './overlays/corners.js';
 import { createGps } from './gps.js';
 import { createSearch } from './search.js';
 import { locationView } from './location-view.js';
@@ -51,7 +52,8 @@ const still = matchMedia('(prefers-reduced-motion: reduce)').matches, motion = s
 const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8, zoomControl: false,
   zoomAnimation: !still, fadeAnimation: !still, markerZoomAnimation: !still, inertia: !still });
 // Search first so it sits at the top left, above zoom and "my location".
-const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place) });
+const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place),
+  snapCorner: (label, lat, lon) => corners.snap(label, lat, lon) });
 L.control.zoom({ position: 'topleft' }).addTo(map);
 // CORS tiles can be kept by the offline worker without the quota cost of opaque responses.
 const tiles = L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true }).addTo(map);
@@ -62,8 +64,10 @@ const pins = createPinLayer(L, map, {
 });
 createPanes(map);
 const latlonFormat = () => getFormat() === 'dms' ? 'dms' : 'decimal';
-const overlays = createOverlays(L, map, { latlonFormat });
-const readout = createReadout(L, map, { latlonFormat });
+// Street corners from the intersections data, once it has loaded (data is created below).
+const corners = createCorners(() => data.features.get('intersections') ?? []);
+const overlays = createOverlays(L, map, { latlonFormat, extras: { grid: group => drawCornerLabels(L, map, group, () => data.features.get('intersections') ?? []) } });
+const readout = createReadout(L, map, { latlonFormat, corner: (lat, lon) => corners.describe(lat, lon) });
 const data = createDataLayers(L, map, { tiles, overlays, readout,
   onChange: ({ layers, level, gps: offer, overlays: on }) => setLayers(layers, level, offer, on),
   onError: () => setStatus('Some map data could not be loaded. Pins still work.') });
@@ -289,7 +293,11 @@ menuButton('Export…', 'export-open', () => files.openExport());
 
 const offline = startOffline({ shell, setStatus, menuButton });
 const about = createAbout();
-void data.loaded.then(() => about.setData(data.snapshot));
+void data.loaded.then(() => {
+  about.setData(data.snapshot);
+  // Corner labels and the nearest corner need the intersections data.
+  overlays.redraw('grid'); readout.update();
+});
 menuButton('About', 'about-open', () => about.open());
 await navigate();
 

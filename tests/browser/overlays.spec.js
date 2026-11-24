@@ -4,6 +4,7 @@ import { blankTiles, open, snapshot, written, build } from './helpers.js';
 
 test.beforeEach(({ page }) => blankTiles(page));
 
+const hasCorners = page => page.evaluate(async () => { await pedway.data.loaded; return Boolean(pedway.data.snapshot?.files.intersections); });
 const labels = (page, key) => page.locator(`.leaflet-coords-labels-pane .coord-${key}`);
 async function switchOn(page, key) {
   if (await page.locator('#layers-panel').isHidden()) await page.locator('#layers-open').click();
@@ -77,4 +78,29 @@ test('the readout and the coordinates section have no WCAG A/AA problems', async
   const { violations } = await new AxeBuilder({ page }).include('#coord-readout').include('.layers-control')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
   expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([]);
+});
+
+test('the address grid labels real corners from the data, and the readout names the nearest one', async ({ page }) => {
+  await open(page);
+  test.skip(!await hasCorners(page), 'this data snapshot has no intersections (an older one, in the compat job)');
+  await open(page, await build(page, { src: '', map: { overlays: { grid: true }, view: { c: [41.88372, -87.62783], z: 17 } } }));
+  await page.evaluate(() => pedway.data.loaded);
+  await expect(page.locator('.corner-label').filter({ hasText: /^State & Washington$/ })).toHaveCount(1);
+  await expect(page.locator('#readout-grid')).toHaveText(/^State & Washington(, \d+ m [NSEW]{1,2})?$/);
+  await page.evaluate(() => pedway.map.setZoom(13, { animate: false }));
+  await expect(page.locator('.corner-label')).toHaveCount(0);
+});
+
+test('a searched corner lands where the data has it', async ({ page }) => {
+  await open(page);
+  test.skip(!await hasCorners(page), 'this data snapshot has no intersections (an older one, in the compat job)');
+  const corner = await page.evaluate(() => pedway.data.features.get('intersections')
+    .find(f => f.properties.streets.includes('Clark') && f.properties.streets.includes('Lake')).geometry.coordinates);
+  await page.locator('#search-input').fill('Clark & Lake');
+  await page.locator('#search-go').click();
+  await expect(page.locator('.search-hit h3')).toHaveText('Clark St & Lake St');
+  // The popup may pan the map, so read where the search marker is, not the map centre.
+  const at = await page.evaluate(() => { let found; pedway.map.eachLayer(layer => { if (layer.options?.className === 'search-marker') found = layer.getLatLng(); }); return found; });
+  expect(Math.abs(at.lat - corner[1])).toBeLessThan(0.00002);
+  expect(Math.abs(at.lng - corner[0])).toBeLessThan(0.00002);
 });

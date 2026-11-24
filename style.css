@@ -136,3 +136,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
   background: linear-gradient(#111, #111) center / 2px 100% no-repeat, linear-gradient(#111, #111) center / 100% 2px no-repeat; opacity: .6; }
 .coord-readout .readout-copy { min-height: 24px; min-width: 44px; height: auto; padding: 0 6px; line-height: 22px; }
 .readout-row + .readout-row { margin-top: 2px; }
+/* Corner labels (address grid overlay): a dot on the corner, the names just above and right. */
+.corner-label span { transform: translate(5px, -100%); font-weight: 700; }
+.corner-label::before { content: ''; position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #92400e; box-shadow: 0 0 0 1.5px #fff; }
