@@ -9,7 +9,9 @@
     "check": "node vendor/fragment-kit-v0.5.0/tools/check.mjs --root vendor/fragment-kit-v0.5.0 --config app-config.json --without-browser-engine && node vendor/fragment-kit-v0.5.0/tools/vendor-sync.mjs --check --target . --to v0.5.0 --without-browser-engine",
     "test:browser": "playwright test --config tests/browser/playwright.config.js",
     "serve": "python3 -m http.server 8000 --bind 127.0.0.1",
-    "stage": "node scripts/stage.mjs _site"
+    "stage": "node scripts/stage.mjs _site",
+    "data:build": "node scripts/build-data.mjs",
+    "data:check": "node scripts/check-data.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

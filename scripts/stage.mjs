@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const SHIP = [
-  'index.html', 'examples.html', 'style.css', 'examples.css', 'icon.svg', 'src',
+  'index.html', 'examples.html', 'style.css', 'examples.css', 'icon.svg', 'src', 'data',
   'vendor/leaflet-1.9.4', 'vendor/marked-18.1.2', 'vendor/dompurify-3.4.17',
   'vendor/fragment-kit-v0.5.0/src',
   'vendor/fragment-kit-v0.5.0/vendor',
