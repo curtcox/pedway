@@ -5,8 +5,9 @@ import { examples } from './examples.js';
 import { createPinLayer } from './pins.js';
 import { createPinEditor } from './pin-editor.js';
 import { createShare } from './share.js';
-import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, OVERLAYS, LEVELS } from './doc.js';
+import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, OVERLAYS, LEVELS, BASES } from './doc.js';
 import { createDataLayers, createPanes, POI_KINDS } from './layers.js';
+import { tileInsideBox } from './base-map.js';
 import { createOverlays } from './overlays/overlays.js';
 import { createReadout } from './overlays/readout.js';
 import { createCorners, drawCornerLabels } from './overlays/corners.js';
@@ -56,7 +57,16 @@ const search = createSearch(L, map, { places: () => searchPlaces(), onPick: plac
   snapCorner: (label, lat, lon) => corners.snap(label, lat, lon) });
 L.control.zoom({ position: 'topleft' }).addTo(map);
 // CORS tiles can be kept by the offline worker without the quota cost of opaque responses.
-const tiles = L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true }).addTo(map);
+// With the downtown map on, tiles wholly inside its box are never fetched (options.skipInsideBox).
+const MaskedTiles = L.TileLayer.extend({
+  _isValidTile(coords) {
+    if (this.options.skipInsideBox && tileInsideBox(L, this._map, coords, this.getTileSize().x)) return false;
+    return L.TileLayer.prototype._isValidTile.call(this, coords);
+  },
+});
+// The data layers add the tiles when the map's base needs them.
+const tiles = new MaskedTiles(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true });
+map.attributionControl.addAttribution(TILE_ATTRIBUTION);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
 const pins = createPinLayer(L, map, {
   onEdit: id => { const pin = findPin(id); if (pin) { pins.close(); editor.open(pin); } },
@@ -69,7 +79,7 @@ const corners = createCorners(() => data.features.get('intersections') ?? []);
 const overlays = createOverlays(L, map, { latlonFormat, extras: { grid: group => drawCornerLabels(L, map, group, () => data.features.get('intersections') ?? []) } });
 const readout = createReadout(L, map, { latlonFormat, corner: (lat, lon) => corners.describe(lat, lon) });
 const data = createDataLayers(L, map, { tiles, overlays, readout,
-  onChange: ({ layers, level, gps: offer, overlays: on }) => setLayers(layers, level, offer, on),
+  onChange: ({ layers, level, gps: offer, overlays: on, base }) => setLayers(layers, level, offer, on, base),
   onError: () => setStatus('Some map data could not be loaded. Pins still work.') });
 const gps = createGps(L, map, { setStatus: (...args) => setStatus(...args), onDropPin: (lat, lon) => { gps.stop(); addPin(lat, lon); },
   accessPoints: () => data.features.get('access') });
@@ -122,16 +132,17 @@ function setPins(list) {
   changed();
 }
 // Layer, overlay and view choices go into the link and become this viewer's default for new maps.
-function setLayers(layers, level, offer = current.map.gps, on = current.map.overlays) {
-  current = type.normalize({ ...current, src: title.value, map: { ...current.map, layers, level, gps: offer, overlays: on } });
+function setLayers(layers, level, offer = current.map.gps, on = current.map.overlays, base = current.map.base) {
+  current = type.normalize({ ...current, src: title.value, map: { ...current.map, layers, level, gps: offer, overlays: on, base } });
   data.show(current.map);
-  setLayerDefaults({ layers: current.map.layers, level: current.map.level, overlays: current.map.overlays });
+  setLayerDefaults({ layers: current.map.layers, level: current.map.level, overlays: current.map.overlays, base: current.map.base });
   changed();
 }
 function blankMap() {
-  const { layers, level, overlays: on } = getLayerDefaults();
+  const { layers, level, overlays: on, base } = getLayerDefaults();
   const known = (record, defaults) => Object.fromEntries(Object.keys(defaults).filter(key => typeof record?.[key] === 'boolean').map(key => [key, record[key]]));
-  return { src: '', map: { layers: known(layers, LAYERS), overlays: known(on, OVERLAYS), level: LEVELS.includes(level) ? level : 'both' } };
+  return { src: '', map: { layers: known(layers, LAYERS), overlays: known(on, OVERLAYS), level: LEVELS.includes(level) ? level : 'both',
+    base: BASES.includes(base) ? base : 'both' } };
 }
 function nextId() {
   const ids = new Set(current.map.pins.map(pin => pin.id));

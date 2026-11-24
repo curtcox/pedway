@@ -139,3 +139,10 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 /* Corner labels (address grid overlay): a dot on the corner, the names just above and right. */
 .corner-label span { transform: translate(5px, -100%); font-weight: 700; }
 .corner-label::before { content: ''; position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #92400e; box-shadow: 0 0 0 1.5px #fff; }
+/* Labels of the self-hosted base map: dark text with a halo, rotated along streets. */
+.base-label { width: 0; height: 0; }
+.base-label span { position: absolute; white-space: nowrap; transform: translate(-50%, -50%); font: 11px/1.2 system-ui, sans-serif; color: #333;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; pointer-events: none; }
+.base-label-water span { color: #1f5f8b; font-style: italic; }
+.base-label-park span { color: #2f6b1f; }
+.base-label-building span { color: #5b5047; font-size: 10px; }

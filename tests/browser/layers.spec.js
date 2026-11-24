@@ -116,11 +116,11 @@ test('place categories toggle, appear only when zoomed in, and can be found by s
   expect((await snapshot(page)).map.layers.food).toBe(true);
   await expect(page.locator('#layers-zoom-note')).toBeHidden();
 
-  await page.evaluate(() => pedway.map.setZoom(14, { animate: false }));
+  await page.evaluate(() => { pedway.map.setZoom(14, { animate: false }); });
   await expect.poll(() => onMap(page, 'food')).toBe(false);
   await expect(page.locator('#layers-zoom-note')).toBeVisible();
   await expect(page.locator('#layer-food')).toBeChecked();
-  await page.evaluate(() => pedway.map.setZoom(16, { animate: false }));
+  await page.evaluate(() => { pedway.map.setZoom(16, { animate: false }); });
   await expect.poll(() => onMap(page, 'food')).toBe(true);
 
   // Open a named food place's popup, then find the same place by name.
@@ -146,7 +146,7 @@ test('the layers panel scrolls on a short map and closes when the map is tapped'
   await page.locator('#map-gps').scrollIntoViewIfNeeded();
   await expect(page.locator('#map-gps')).toBeInViewport();
   // Data shapes cover much of the map, so fire the map's own click.
-  await page.evaluate(() => pedway.map.fire('click', { latlng: pedway.map.getCenter() }));
+  await page.evaluate(() => { pedway.map.fire('click', { latlng: pedway.map.getCenter() }); });
   await expect(page.locator('#layers-panel')).toBeHidden();
   await expect(page.locator('#layers-open')).toHaveAttribute('aria-expanded', 'false');
 });

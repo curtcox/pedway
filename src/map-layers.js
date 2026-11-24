@@ -5,6 +5,7 @@ import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
 
 // The Layers panel's sections, in order.
 export const LAYER_GROUPS = Object.freeze([
+  { key: 'base', title: 'Base map' },
   { key: 'transit', title: 'Pedway and transit' },
   { key: 'places', title: 'Places' },
   { key: 'coords', title: 'Coordinates' },
@@ -13,6 +14,14 @@ export const LAYER_GROUPS = Object.freeze([
 // Panes fix the stacking order whichever layers are on. Leaflet's own panes are
 // tilePane 200, overlayPane 400 (the data shapes), markerPane 600 and popupPane 700.
 export const PANES = Object.freeze([
+  // The self-hosted base map, above the raster tiles and below everything else.
+  { name: 'base-land', zIndex: 210 },
+  { name: 'base-green', zIndex: 220 },
+  { name: 'base-water', zIndex: 230 },
+  { name: 'base-streets', zIndex: 240 },
+  { name: 'base-rail', zIndex: 250 },
+  { name: 'base-buildings', zIndex: 260 },
+  { name: 'base-labels', zIndex: 350 },
   { name: 'coords-lines', zIndex: 380 },
   { name: 'coords-labels', zIndex: 450 },
 ]);
@@ -26,6 +35,9 @@ const title = key => DATA_LAYERS.find(layer => layer.key === key).title;
 // default: whether the layer is on in a new map. streetHides: the "Streets only"
 // view hides it without switching it off.
 export const MAP_LAYERS = Object.freeze([
+  // The self-hosted base map of downtown (src/base-map.js). Its files load the first time they are shown.
+  ...['green', 'water', 'streets', 'rail', 'buildings', 'labels'].map(key => ({ key, group: 'base', title: title(key),
+    source: { kind: 'snapshot', file: key }, default: true, pane: `base-${key}` })),
   { key: 'pedway', group: 'transit', title: title('pedway'), source: { kind: 'snapshot', file: 'pedway' }, default: true, streetHides: true },
   { key: 'access', group: 'transit', title: title('access'), source: { kind: 'snapshot', file: 'access' }, default: true, streetHides: true },
   { key: 'cta', group: 'transit', title: title('cta'), source: { kind: 'snapshot', file: 'cta' }, default: true },
@@ -36,6 +48,15 @@ export const MAP_LAYERS = Object.freeze([
 
 /** The layer keys a map document holds, with each one's default. */
 export const LAYER_DEFAULTS = Object.freeze(Object.fromEntries(MAP_LAYERS.map(layer => [layer.key, layer.default])));
+
+// Where the base map comes from: the self-hosted downtown map with OpenStreetMap's
+// tiles around it, either one alone, or none (only the data shapes).
+export const BASE_MODES = Object.freeze([
+  { key: 'both', title: 'Downtown map, OpenStreetMap beyond' },
+  { key: 'local', title: 'Downtown map only (no outside servers)' },
+  { key: 'osm', title: 'OpenStreetMap tiles' },
+  { key: 'none', title: 'None' },
+]);
 
 // Coordinate overlays: drawn from code alone (src/overlays/), kept in the document's
 // overlays field rather than layers. All are off in a new map.

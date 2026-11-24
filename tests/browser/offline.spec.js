@@ -37,13 +37,16 @@ test.afterAll(async () => {
   if (site?.startsWith(root)) await fs.rm(site, { recursive: true, force: true });
 });
 
-test('after one visit the map, its data and seen tiles work in airplane mode', async ({ page, context, browserName }) => {
+test('after one visit the map, its data, the downtown map and seen tiles work in airplane mode', async ({ page, context, browserName }) => {
   let tileRequests = 0;
   await context.route('https://tile.openstreetmap.org/**', route => { tileRequests++; return down ? route.abort('internetdisconnected') : route.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }); });
   await page.goto(base + '?example=meet');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('#offline-status')).toHaveText('Available offline', { timeout: 60000 });
-  const href = await page.evaluate(() => location.href);
+  // A view across the south edge of the downtown box: the downtown map draws inside it, tiles outside.
+  const href = await page.evaluate(() => pedway.urlState.build({ ...pedway.snapshot(), map: { ...pedway.snapshot().map, view: { c: [41.8665, -87.6278], z: 15 } } }).href);
+  await page.goto(href);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   // Once the worker controls the page, the tiles it draws are kept.
   await page.reload();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
@@ -63,6 +66,12 @@ test('after one visit the map, its data and seen tiles work in airplane mode', a
     await expect(page.locator('.pin-marker')).toHaveCount(doc.map.pins.length);
     await expect.poll(() => page.evaluate(() => pedway.data.features.get('pedway')?.length ?? 0)).toBeGreaterThan(10);
     await expect(page.locator('#map .leaflet-tile-loaded').first()).toBeVisible();
+    // The downtown map comes from the offline copy too (when the snapshot has one).
+    if (await page.evaluate(() => pedway.data.baseMap.available)) {
+      await page.evaluate(() => pedway.data.baseMap.ready());
+      expect(await page.evaluate(() => pedway.data.baseMap.groups.get('streets').getLayers().length)).toBe(1);
+      await expect(page.locator('.leaflet-base-streets-pane canvas')).toBeAttached();
+    }
     expect(tileRequests).toBe(seen);
     await expect(page.locator('#app-status')).not.toContainText('could not be loaded');
     // A blank map opens offline too, and the library still works.

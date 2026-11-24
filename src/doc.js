@@ -6,7 +6,10 @@ import { OVERLAY_DEFAULTS } from './map-layers.js';
 export const LAYERS = Object.freeze({
   pedway: true, access: true, cta: true, metra: true, restroom: true,
   food: false, store: false, museum: false, park: false,
+  green: true, water: true, streets: true, rail: true, buildings: true, labels: true,
 });
+// Where the base map comes from (BASE_MODES in map-layers.js).
+export const BASES = Object.freeze(['both', 'local', 'osm', 'none']);
 // Coordinate overlays: latitude/longitude, geohash, USNG, and the address grid with corners.
 export const OVERLAYS = OVERLAY_DEFAULTS;
 export const LEVELS = Object.freeze(['both', 'pedway', 'street']);
@@ -34,7 +37,7 @@ function text(value, max, what) {
 }
 
 export function defaultMap() {
-  return { view: { c: [...LOOP_CENTER], z: DEFAULT_ZOOM }, level: 'both', layers: { ...LAYERS }, overlays: { ...OVERLAYS }, pins: [], gps: false };
+  return { view: { c: [...LOOP_CENTER], z: DEFAULT_ZOOM }, level: 'both', base: 'both', layers: { ...LAYERS }, overlays: { ...OVERLAYS }, pins: [], gps: false };
 }
 
 function normalizeView(view = {}) {
@@ -74,16 +77,17 @@ export function normalizePin(pin) {
 
 export function normalizeMap(map = {}) {
   if (!plain(map)) fail('Map must be an object.');
-  only(map, ['view', 'level', 'layers', 'overlays', 'pins', 'gps'], 'map');
-  const level = map.level ?? 'both';
+  only(map, ['view', 'level', 'base', 'layers', 'overlays', 'pins', 'gps'], 'map');
+  const level = map.level ?? 'both', base = map.base ?? 'both';
   if (!LEVELS.includes(level)) fail('Level must be both, pedway or street.');
+  if (!BASES.includes(base)) fail(`Base map must be ${BASES.join(', ')}.`);
   const pins = map.pins ?? [];
   if (!Array.isArray(pins)) fail('Pins must be a list.');
   if (pins.length > LIMITS.pins) fail(`A map can have at most ${LIMITS.pins} pins.`);
   const normalized = pins.map(normalizePin), ids = new Set(normalized.map(pin => pin.id));
   if (ids.size !== normalized.length) fail('Pin ids must be unique.');
   if (map.gps !== undefined && typeof map.gps !== 'boolean') fail('gps must be true or false.');
-  return { view: normalizeView(map.view), level, layers: normalizeSwitches(map.layers, LAYERS, 'layer'),
+  return { view: normalizeView(map.view), level, base, layers: normalizeSwitches(map.layers, LAYERS, 'layer'),
     overlays: normalizeSwitches(map.overlays, OVERLAYS, 'overlay'), pins: normalized, gps: map.gps ?? false };
 }
 

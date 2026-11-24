@@ -17,11 +17,11 @@ export function fileStem(title) {
 
 /** Pins as GeoJSON points. The `pedway` foreign member lets this app reopen the whole map. */
 export function toGeoJSON(doc) {
-  const { view, level, layers, overlays, gps } = doc.map;
+  const { view, level, base, layers, overlays, gps } = doc.map;
   return {
     type: 'FeatureCollection',
     name: doc.src || 'Pedway map',
-    pedway: { version: 1, title: doc.src, view, level, layers, overlays, gps },
+    pedway: { version: 1, title: doc.src, view, level, base, layers, overlays, gps },
     features: doc.map.pins.map(pin => {
       const [lat, lon] = pinLocation(pin);
       return {
@@ -93,7 +93,7 @@ export function geoJSONMap({ title, meta, pins }, base = {}) {
   const fitted = { ...base, pins, ...(pins.length ? { view: { c: centre(pins), z: 16 } } : {}) };
   if (!meta) return type.normalize({ src: title, map: fitted });
   const map = { ...base, pins };
-  for (const key of ['view', 'level', 'layers', 'overlays', 'gps']) if (meta[key] !== undefined) map[key] = meta[key];
+  for (const key of ['view', 'level', 'base', 'layers', 'overlays', 'gps']) if (meta[key] !== undefined) map[key] = meta[key];
   // A damaged or edited `pedway` member never blocks the pins themselves.
   try { return type.normalize({ src: title, map }); } catch { return type.normalize({ src: title, map: fitted }); }
 }

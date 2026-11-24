@@ -15,7 +15,7 @@ test('an example link is replaced once by a self-contained map link', async ({ p
 test('title edits and map moves are written to the URL and survive a reload', async ({ page }) => {
   await open(page);
   await page.locator('#map-title').fill('Coffee run');
-  await page.evaluate(() => pedway.map.setView([41.8826, -87.6402], 17, { animate: false }));
+  await page.evaluate(() => { pedway.map.setView([41.8826, -87.6402], 17, { animate: false }); });
   await expect.poll(async () => (await snapshot(page)).map.view).toEqual({ c: [41.8826, -87.6402], z: 17 });
   const href = await written(page);
   const before = await snapshot(page);

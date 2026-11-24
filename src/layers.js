@@ -1,7 +1,8 @@
 // Draws the committed GeoJSON data and the panel that turns each layer on and off.
 import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
-import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM, OVERLAYS } from './map-layers.js';
+import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM, OVERLAYS, BASE_MODES } from './map-layers.js';
+import { createBaseMap } from './base-map.js';
 import { LEVELS } from './doc.js';
 import { externalLinks } from './external.js';
 import { fetchSnapshot } from './data-snapshot.js';
@@ -81,11 +82,17 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
   const groups = new Map(MAP_LAYERS.map(layer => [layer.key, L.layerGroup()]));
   const features = new Map(DATA_LAYERS.map(layer => [layer.key, []]));
   const built = new Map();   // map layer key → promise that its shapes are in its group
-  let state = { layers: {}, overlays: {}, level: 'both', gps: false };
+  let state = { layers: {}, overlays: {}, level: 'both', base: 'both', gps: false };
   // The data comes from the snapshot data/current.json names. Each file loads and is
   // checked on its own, so one that fails leaves the others on the map.
   let manifest = null;
   const snapshot = fetchSnapshot(baseUrl, { id: snapshotId }).then(value => { manifest = value.manifest; return value; });
+  // The self-hosted downtown map, when the snapshot has it (older ones do not).
+  const baseMap = createBaseMap(L, map, { snapshot, onError });
+  // Until the manifest says whether there is a downtown map, no tiles are fetched, so
+  // none are fetched needlessly inside the box.
+  let localAvailable = false, baseKnown = false;
+  void baseMap.available.then(value => { localAvailable = value; baseKnown = true; show(state); });
 
   function build(layer) {
     if (built.has(layer.key)) return built.get(layer.key);
@@ -122,9 +129,20 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
     return Object.fromEntries(results.filter(result => result.status === 'fulfilled').map(result => result.value));
   }, error => { onError?.(error); return {}; });
 
-  const visible = layer => state.layers[layer.key] && !(state.level === 'street' && layer.streetHides) && !(layer.minZoom && map.getZoom() < layer.minZoom);
+  const visible = layer => layer.group !== 'base' && state.layers[layer.key] && !(state.level === 'street' && layer.streetHides) && !(layer.minZoom && map.getZoom() < layer.minZoom);
   function show(next) {
-    state = { layers: { ...next.layers }, overlays: { ...next.overlays }, level: next.level, gps: Boolean(next.gps) };
+    state = { layers: { ...next.layers }, overlays: { ...next.overlays }, level: next.level, base: next.base ?? 'both', gps: Boolean(next.gps) };
+    // Base map: the downtown map for both and local; OpenStreetMap's tiles for osm, and
+    // for both outside the downtown box (everywhere, if the snapshot has no downtown map).
+    const local = localAvailable && (state.base === 'both' || state.base === 'local');
+    const raster = state.base === 'osm' || state.base === 'both';
+    baseMap.show(state.layers, local);
+    baseMap.dim(state.level === 'pedway');
+    if (tiles) {
+      const skip = local && state.base === 'both';
+      if (tiles.options.skipInsideBox !== skip) { tiles.options.skipInsideBox = skip; if (map.hasLayer(tiles)) tiles.redraw(); }
+      if (raster && baseKnown) tiles.addTo(map); else tiles.remove();
+    }
     for (const layer of MAP_LAYERS) {
       const group = groups.get(layer.key);
       if (!visible(layer)) { group.remove(); continue; }
@@ -145,12 +163,21 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
       const toggle = element('button', 'Layers', { type: 'button', id: 'layers-open', 'aria-expanded': 'false', 'aria-controls': 'layers-panel' });
       const sheet = element('div', null, { id: 'layers-panel', className: 'layers-panel', hidden: '' });
       const boxes = new Map(), overlayBoxes = new Map();
+      const baseMode = element('select', null, { id: 'base-mode', 'aria-label': 'Base map' });
+      for (const mode of BASE_MODES) baseMode.append(element('option', mode.title, { value: mode.key }));
+      baseMode.onchange = () => onChange({ ...state, base: baseMode.value });
+      const baseNote = element('p', 'This data snapshot has no downtown map; OpenStreetMap tiles are used instead.', { className: 'layers-note', id: 'base-note', hidden: '' });
       const placesNote = element('p', 'Zoom in to see places.', { className: 'layers-note', id: 'layers-zoom-note' });
       for (const group of LAYER_GROUPS) {
         const members = MAP_LAYERS.filter(layer => layer.group === group.key);
         if (!members.length && group.key !== 'coords') continue;
         sheet.append(element('h3', group.title, { id: `layers-${group.key}` }));
         if (group.key === 'places') sheet.append(placesNote);
+        if (group.key === 'base') {
+          const label = element('label', null, { className: 'layer-level', for: 'base-mode' });
+          label.append(element('span', 'Map'), baseMode);
+          sheet.append(label, baseNote);
+        }
         if (group.key === 'coords') {
           for (const overlay of OVERLAYS) {
             const input = element('input', null, { type: 'checkbox', id: `overlay-${overlay.key}`, value: overlay.key });
@@ -198,6 +225,10 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
         level.value = state.level;
         offer.checked = state.gps;
         for (const layer of MAP_LAYERS) if (layer.streetHides) boxes.get(layer.key).disabled = state.level === 'street';
+        baseMode.value = state.base;
+        const local = localAvailable && (state.base === 'both' || state.base === 'local');
+        for (const layer of MAP_LAYERS) if (layer.group === 'base') boxes.get(layer.key).disabled = !local;
+        baseNote.hidden = localAvailable || !manifest;
         placesNote.hidden = map.getZoom() >= POI_MIN_ZOOM;
       };
       return box;
@@ -206,5 +237,5 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
     return { sync: () => control.sync?.() };
   })();
 
-  return { show, loaded, groups, features, get snapshot() { return manifest; } };
+  return { show, loaded, groups, features, baseMap, get snapshot() { return manifest; } };
 }

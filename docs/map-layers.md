@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0–L4 done** (2026-11-24); L5–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
+Status: **L0–L5 done** (2026-11-24); L6–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -227,7 +227,7 @@ rather than drawing more.
 | **L2** ✓ | Lat/long, geohash and USNG overlays, the readout, and `map.overlays` in links | Overlays round-trip in links in all three browsers; unit tests check line positions against known values (for example, a USNG 1 km line against PROJ); axe passes with the readout open. |
 | **L3** ✓ | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
 | **L4** ✓ | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
-| **L5** | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
+| **L5** ✓ | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
 | **L6** | `stage --self-contained` and its blocked-network test; About lists every external host and when it is used | The self-contained site passes the browser suite with all external requests blocked. |
 | **L7** (optional) | Measure PMTiles + protomaps-leaflet for a citywide self-hosted base; prototype the Pedway schematic view | A written go/no-go for each, with sizes. |
 
@@ -434,3 +434,34 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
   of Blues) are marked because OSM tags Riverwalk passages there as Pedway, and
   the Thompson Center is not, because OSM's Pedway ways stop at Clark/Lake.
 * The staged site is now 4.0 MiB raw (about 0.8 MiB gzip), all of it precached.
+
+### L5 (2026-11-24)
+
+* `src/base-map.js` draws land (the box), green space, water, streets, rail and
+  buildings on one canvas per pane, non-interactive. Street widths grow with
+  zoom. Buildings on the Pedway are tinted blue. Labels are DOM markers placed
+  by rank without overlaps (at most 150), redrawn on `moveend`. They are created
+  as elements, not HTML strings, because the page's CSP refuses inline `style`
+  attributes and street labels need a rotation.
+* *Base map* is the first section of the Layers panel: a **Map** choice
+  (`map.base`: `both`, the default, is the downtown map with OpenStreetMap
+  tiles beyond it; `local` is the downtown map only and never contacts the tile
+  server; `osm` is tiles only; `none` is neither) and one switch per base
+  layer (`map.layers.green` … `labels`, on by default). Older links without
+  these open with the defaults.
+* In `both`, a `TileLayer` subclass skips tiles wholly inside the box, so in the
+  Loop no tile is fetched at all. Tiles also wait until the manifest says
+  whether the snapshot has a downtown map. With an older snapshot, `both` falls
+  back to tiles everywhere and the panel says why.
+* *Pedway focus* now dims every base pane as well as the tiles.
+* `tests/browser/basemap.spec.js` covers drawing, no tile requests inside the
+  box, each base choice, per-layer switches, focus dimming and older links.
+  The offline test now visits a view across the box's edge and checks, offline,
+  that the downtown map draws and seen tiles return with no new tile requests.
+  Tests that skip without the base data still pass on `2026-11-24`, as the
+  compat job needs.
+* Browser tests no longer return the map from `page.evaluate` (`setZoom`
+  returns it), because with the base layers it is too deep for Playwright to
+  serialize.
+* **Not done:** a check on a real mid-range phone. L0's throttled emulation
+  measured about 0.37 s to draw and 0.15 s after a pan.

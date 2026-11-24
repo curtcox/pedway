@@ -8,7 +8,8 @@ test('shows a map of the Loop that can be panned and zoomed', async ({ page }) =
   page.on('pageerror', error => errors.push(error.message));
   await open(page);
   await expect(page.locator('.fk-header')).toContainText('Pedway Tools');
-  await expect(page.locator('#map .leaflet-tile-loaded').first()).toBeVisible();
+  // The Loop is drawn by the downtown map; older data snapshots have none, and use tiles.
+  await expect(page.locator('#map .leaflet-tile-loaded, #map .leaflet-base-streets-pane canvas').first()).toBeVisible();
   await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
 
   const view = () => page.evaluate(() => { const c = pedway.map.getCenter(); return { lat: c.lat, lng: c.lng, zoom: pedway.map.getZoom() }; });
@@ -21,7 +22,7 @@ test('shows a map of the Loop that can be panned and zoomed', async ({ page }) =
   // getZoom() reports the target before the animation ends; Leaflet drops pans made during it.
   await expect.poll(() => page.evaluate(() => pedway.map._animatingZoom)).toBe(false);
 
-  await page.evaluate(() => pedway.map.panBy([200, 0], { animate: false }));
+  await page.evaluate(() => { pedway.map.panBy([200, 0], { animate: false }); });
   expect((await view()).lng).toBeGreaterThan(start.lng);
 
   await page.locator('#recenter').click();

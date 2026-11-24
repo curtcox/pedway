@@ -63,9 +63,9 @@ test('the grid redraws as the map moves and keeps its readout current', async ({
   await open(page);
   await open(page, await build(page, { src: '', map: { overlays: { usng: true } } }));
   const before = await page.locator('#readout-usng').textContent();
-  await page.evaluate(() => pedway.map.panBy([300, 0], { animate: false }));
+  await page.evaluate(() => { pedway.map.panBy([300, 0], { animate: false }); });
   await expect(page.locator('#readout-usng')).not.toHaveText(before);
-  await page.evaluate(() => pedway.map.setZoom(12, { animate: false }));
+  await page.evaluate(() => { pedway.map.setZoom(12, { animate: false }); });
   // Zoomed out, the lines are 10 km apart and labelled with one digit.
   await expect(labels(page, 'usng').filter({ hasText: /^\d$/ }).first()).toBeAttached();
   await expect(page.locator('#coord-readout-live')).toContainText('USNG 16T');
@@ -87,7 +87,7 @@ test('the address grid labels real corners from the data, and the readout names 
   await page.evaluate(() => pedway.data.loaded);
   await expect(page.locator('.corner-label').filter({ hasText: /^State & Washington$/ })).toHaveCount(1);
   await expect(page.locator('#readout-grid')).toHaveText(/^State & Washington(, \d+ m [NSEW]{1,2})?$/);
-  await page.evaluate(() => pedway.map.setZoom(13, { animate: false }));
+  await page.evaluate(() => { pedway.map.setZoom(13, { animate: false }); });
   await expect(page.locator('.corner-label')).toHaveCount(0);
 });
 
