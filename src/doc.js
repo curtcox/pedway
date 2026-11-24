@@ -1,5 +1,5 @@
 // The shareable map document: everything a link carries.
-import { encodeGeohash, decodeGeohash, GEOHASH_PATTERN } from './geohash.js';
+import { encodeGeohash, decodeGeohash, GEOHASH_PATTERN } from './geo/geohash.js';
 import { LOOP_CENTER, DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, CHICAGO_BOUNDS } from './map-defaults.js';
 
 export const LAYERS = Object.freeze({

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeGeohash, decodeGeohash } from '../src/geohash.js';
+import { encodeGeohash, decodeGeohash } from '../src/geo/geohash.js';
 import { type, defaultMap, normalizeMap, pinAt, pinLocation, LAYERS, LIMITS } from '../src/doc.js';
 import { examples } from '../src/examples.js';
 import { createConfig, createUrlState } from '../vendor/fragment-kit-v0.5.0/src/index.js';
