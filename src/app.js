@@ -6,7 +6,7 @@ import { createPinLayer } from './pins.js';
 import { createPinEditor } from './pin-editor.js';
 import { createShare } from './share.js';
 import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, LEVELS } from './doc.js';
-import { createDataLayers } from './layers.js';
+import { createDataLayers, POI_KINDS } from './layers.js';
 import { createGps } from './gps.js';
 import { createSearch } from './search.js';
 import { locationView } from './location-view.js';
@@ -14,6 +14,7 @@ import { externalLinks } from './external.js';
 import { getLayerDefaults, setLayerDefaults } from './viewer-settings.js';
 import { createFileActions } from './file-actions.js';
 import { startOffline } from './offline.js';
+import { createAbout } from './about.js';
 
 const L = globalThis.L;
 // Keep popups clear of the search box and status bar when they auto-pan into view.
@@ -43,7 +44,10 @@ function menuButton(label, id, onClick) {
 }
 
 const [[south, west], [north, east]] = CHICAGO_BOUNDS;
-const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8, zoomControl: false });
+// Viewers who ask the system for less motion get a map that jumps instead of gliding.
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches, motion = still ? { animate: false } : {};
+const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8, zoomControl: false,
+  zoomAnimation: !still, fadeAnimation: !still, markerZoomAnimation: !still, inertia: !still });
 // Search first so it sits at the top left, above zoom and "my location".
 const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place) });
 L.control.zoom({ position: 'topleft' }).addTo(map);
@@ -56,7 +60,7 @@ const pins = createPinLayer(L, map, {
 });
 const data = createDataLayers(L, map, { tiles,
   onChange: ({ layers, level, gps: offer }) => setLayers(layers, level, offer),
-  onError: () => setStatus('Could not load the Pedway and station data. Pins still work.') });
+  onError: () => setStatus('Some map data could not be loaded. Pins still work.') });
 const gps = createGps(L, map, { setStatus: (...args) => setStatus(...args), onDropPin: (lat, lon) => { gps.stop(); addPin(lat, lon); },
   accessPoints: () => data.features.get('access') });
 // Named places the search box can find without the network.
@@ -68,6 +72,7 @@ function searchPlaces() {
     ...named('cta', p => `CTA ${p.lines?.join(', ') ?? ''}`.trim()),
     ...named('metra', p => `Metra ${p.lines?.join(', ') ?? ''}`.trim()),
     ...named('access', p => ({ elevator: 'Pedway elevator', station: 'Station entrance' }[p.kind] ?? 'Pedway entrance')),
+    ...named('poi', p => `${POI_KINDS[p.kind] ?? p.kind}${p.pedway ? ', on the Pedway' : ''}`),
   ];
 }
 const searchMarker = L.circleMarker([0, 0], { radius: 10, color: '#d81b60', weight: 3, fillOpacity: 0.15, className: 'search-marker' });
@@ -83,7 +88,7 @@ function showSearchHit(place) {
     if (map.getCenter().distanceTo(target) < 1 && map.getZoom() === zoom) return searchMarker.openPopup();
     // Open the popup once the map has arrived, so it does not shift under the user's finger.
     map.once('moveend', () => searchMarker.openPopup());
-    map.setView(target, zoom);
+    map.setView(target, zoom, motion);
   });
 }
 const editor = createPinEditor({
@@ -158,7 +163,7 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape' && pl
 // Leaflet 1.9 drops a setView made while a zoom animation is running: the
 // animation's end restores its own target. Wait for it to finish first.
 function whenSettled(work) { if (map._animatingZoom) map.once('zoomend', work); else work(); }
-function recenter() { whenSettled(() => map.setView(LOOP_CENTER, DEFAULT_ZOOM)); }
+function recenter() { whenSettled(() => map.setView(LOOP_CENTER, DEFAULT_ZOOM, motion)); }
 
 function apply(doc) {
   current = type.normalize(doc);
@@ -277,6 +282,8 @@ menuButton('Open file…', 'file-open', () => files.pick());
 menuButton('Export…', 'export-open', () => files.openExport());
 
 const offline = startOffline({ shell, setStatus, menuButton });
+const about = createAbout();
+menuButton('About', 'about-open', () => about.open());
 await navigate();
 
 // Exposed for browser tests and debugging.

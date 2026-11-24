@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHICAGO_BOUNDS } from '../src/map-defaults.js';
-import { DATA_LAYERS } from '../src/data-layers.js';
+import { DATA_LAYERS, POI_CATEGORIES } from '../src/data-layers.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const [[S, W], [N, E]] = CHICAGO_BOUNDS;
@@ -47,6 +47,10 @@ export async function checkData(dir = path.join(root, 'data')) {
         if (value !== undefined && check.type === 'boolean' && typeof value !== 'boolean') errors.push(`${where}: ${key} must be true or false`);
       }
       for (const key of Object.keys(properties)) if (!(key in layer.properties)) errors.push(`${where}: unexpected property ${key}`);
+    }
+    if (layer.key === 'poi') for (const category of POI_CATEGORIES) {
+      const count = data.features.filter(feature => feature?.properties?.category === category.key).length;
+      if (count < category.minFeatures) errors.push(`${name}: only ${count} ${category.key} places, expected at least ${category.minFeatures}`);
     }
   }
   return errors;

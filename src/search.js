@@ -24,9 +24,11 @@ export function matchNames(places, query, limit = 6) {
 export function createSearch(L, map, { places, onPick }) {
   const form = element('form', null, { className: 'search-form', role: 'search' });
   const input = element('input', null, { type: 'search', id: 'search-input', placeholder: 'Search: address, corner, station, 41.88,-87.63…',
-    'aria-label': 'Search for a place', autocomplete: 'off', enterkeyhint: 'search', 'aria-controls': 'search-results', 'aria-autocomplete': 'list' });
+    'aria-label': 'Search for a place', autocomplete: 'off', enterkeyhint: 'search', 'aria-controls': 'search-results', 'aria-describedby': 'search-note' });
   const go = element('button', 'Go', { type: 'submit', id: 'search-go' });
-  const results = element('ul', null, { id: 'search-results', className: 'search-results', role: 'listbox', hidden: '' });
+  // Suggestions are plain buttons in a list, reached with Down or Tab: simpler for screen
+  // readers than a combobox, and the live note says how many there are.
+  const results = element('ul', null, { id: 'search-results', className: 'search-results', 'aria-label': 'Suggestions', hidden: '' });
   const note = element('p', null, { id: 'search-note', className: 'search-note', hidden: '', 'aria-live': 'polite' });
   form.append(input, go, results, note);
 
@@ -43,7 +45,7 @@ export function createSearch(L, map, { places, onPick }) {
   function show(list) {
     results.replaceChildren();
     for (const [i, place] of list.entries()) {
-      const option = element('li', null, { role: 'option', id: `search-option-${i}` });
+      const option = element('li', null, { id: `search-option-${i}` });
       const button = element('button', null, { type: 'button', className: 'search-option' });
       button.append(element('span', place.name, { className: 'search-name' }), element('small', place.detail ?? '', { className: 'search-detail' }));
       button.onclick = () => pick(place);
@@ -59,8 +61,9 @@ export function createSearch(L, map, { places, onPick }) {
   function close() { show([]); say(''); }
 
   input.addEventListener('input', () => {
-    say('');
-    show(matchNames(places(), input.value));
+    const list = matchNames(places(), input.value);
+    show(list);
+    say(list.length ? `${list.length} suggestion${list.length === 1 ? '' : 's'}; press Down to choose.` : '');
   });
   input.addEventListener('keydown', event => {
     if (event.key === 'Escape') { close(); }

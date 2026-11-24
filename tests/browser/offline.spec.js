@@ -64,7 +64,7 @@ test('after one visit the map, its data and seen tiles work in airplane mode', a
     await expect.poll(() => page.evaluate(() => pedway.data.features.get('pedway')?.length ?? 0)).toBeGreaterThan(10);
     await expect(page.locator('#map .leaflet-tile-loaded').first()).toBeVisible();
     expect(tileRequests).toBe(seen);
-    await expect(page.locator('#app-status')).not.toContainText('Could not load');
+    await expect(page.locator('#app-status')).not.toContainText('could not be loaded');
     // A blank map opens offline too, and the library still works.
     await page.goto(base);
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');

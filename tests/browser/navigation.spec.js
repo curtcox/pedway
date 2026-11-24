@@ -73,22 +73,23 @@ test('search suggests stations and pins by name, and a hit can become a pin', as
 
 test('unknown addresses go to OpenStreetMap only when searched, and results stay in Chicago', async ({ page }) => {
   const requests = await fakeNominatim(page, [
-    { display_name: 'Art Institute of Chicago, 111, South Michigan Avenue, Loop, Chicago, Cook County, Illinois, United States', lat: '41.8796', lon: '-87.6237' },
+    { display_name: 'Navy Pier, 600, East Grand Avenue, Streeterville, Chicago, Cook County, Illinois, United States', lat: '41.8917', lon: '-87.6086' },
   ]);
   await open(page);
-  await page.locator('#search-input').fill('Art Institute');
+  // Navy Pier is not in the app's own data, so only OpenStreetMap can find it.
+  await page.locator('#search-input').fill('Navy Pier');
   await page.waitForTimeout(300);
   expect(requests).toHaveLength(0);
   await page.locator('#search-go').click();
-  await expect(page.locator('.leaflet-popup .search-hit h3').last()).toHaveText(/^Art Institute of Chicago/);
+  await expect(page.locator('.leaflet-popup .search-hit h3').last()).toHaveText(/^Navy Pier/);
   expect(requests).toHaveLength(1);
-  expect(requests[0].searchParams.get('q')).toBe('Art Institute');
+  expect(requests[0].searchParams.get('q')).toBe('Navy Pier');
   expect(requests[0].searchParams.get('bounded')).toBe('1');
-  await expect.poll(async () => metres(await center(page), { lat: 41.8796, lon: -87.6237 })).toBeLessThan(40);
+  await expect.poll(async () => metres(await center(page), { lat: 41.8917, lon: -87.6086 })).toBeLessThan(40);
 
   // The same search again is answered from the cache.
-  await search(page, 'art institute');
-  await expect(page.locator('.leaflet-popup .search-hit h3').last()).toHaveText(/^Art Institute of Chicago/);
+  await search(page, 'navy pier');
+  await expect(page.locator('.leaflet-popup .search-hit h3').last()).toHaveText(/^Navy Pier/);
   expect(requests).toHaveLength(1);
 });
 

@@ -100,3 +100,13 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 #offline-status:empty { display: none; }
 @media (max-width: 767px) { .fk-compact > .fk-toolbar .fk-library-status { display: none; } }
 @media (min-width: 768px) { .mobile-only { display: none; } }
+#about-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.about-body h3 { margin: 12px 0 4px; font-size: 1rem; }
+.about-body p, .about-body ul { margin: 0 0 8px; }
+.about-body ul { padding-left: 1.25em; }
+#layers-places { margin-top: 6px; }
+/* A clear focus ring on the map's own controls, which Leaflet leaves unstyled. */
+:is(.leaflet-control button, .leaflet-control select, .leaflet-control a, .search-option, #search-input, .leaflet-marker-icon, .open-in summary):focus-visible { outline: 3px solid #1a73e8; outline-offset: 1px; }
+#map:focus-visible { outline: 3px solid #1a73e8; outline-offset: -3px; }
+/* With the Places section the panel can outgrow a short map: keep it inside and let it scroll. */
+.layers-panel { max-height: calc(100dvh - 190px); overflow-y: auto; overscroll-behavior: contain; gap: 4px; }

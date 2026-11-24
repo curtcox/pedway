@@ -101,3 +101,52 @@ test('the view setting focuses on the Pedway or hides it', async ({ page }) => {
   await expect(page.locator('#layers-panel')).toBeHidden();
   await expect(page.locator('#layers-open')).toBeFocused();
 });
+
+test('place categories toggle, appear only when zoomed in, and can be found by search', async ({ page }) => {
+  await open(page);
+  const counts = await loaded(page);
+  expect(counts.poi).toBeGreaterThan(100);
+  // Restrooms are on by default; food is off.
+  expect(await onMap(page, 'restroom')).toBe(true);
+  expect(await onMap(page, 'food')).toBe(false);
+  await openPanel(page);
+  await expect(page.locator('#layers-places')).toHaveText('Places');
+  await page.locator('#layer-food').check();
+  expect(await onMap(page, 'food')).toBe(true);
+  expect((await snapshot(page)).map.layers.food).toBe(true);
+  await expect(page.locator('#layers-zoom-note')).toBeHidden();
+
+  await page.evaluate(() => pedway.map.setZoom(14, { animate: false }));
+  await expect.poll(() => onMap(page, 'food')).toBe(false);
+  await expect(page.locator('#layers-zoom-note')).toBeVisible();
+  await expect(page.locator('#layer-food')).toBeChecked();
+  await page.evaluate(() => pedway.map.setZoom(16, { animate: false }));
+  await expect.poll(() => onMap(page, 'food')).toBe(true);
+
+  // Open a named food place's popup, then find the same place by name.
+  const name = await page.evaluate(() => {
+    let found = null;
+    pedway.data.groups.get('food').eachLayer(geo => geo.eachLayer(shape => {
+      if (!found && shape.feature.properties.name) { found = shape.feature.properties.name; shape.openPopup(); }
+    }));
+    return found;
+  });
+  await expect(page.locator('.leaflet-popup .data-popup h3').last()).toHaveText(name);
+  await expect(page.locator('.leaflet-popup .data-popup .open-in').last()).toBeAttached();
+  await page.keyboard.press('Escape');
+  await page.locator('#search-input').fill(name);
+  await expect(page.locator('.search-option').first()).toContainText(name);
+  await expect(page.locator('#search-note')).toContainText('press Down');
+});
+
+test('the layers panel scrolls on a short map and closes when the map is tapped', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 420 });
+  await open(page);
+  await openPanel(page);
+  await page.locator('#map-gps').scrollIntoViewIfNeeded();
+  await expect(page.locator('#map-gps')).toBeInViewport();
+  // Data shapes cover much of the map, so fire the map's own click.
+  await page.evaluate(() => pedway.map.fire('click', { latlng: pedway.map.getCenter() }));
+  await expect(page.locator('#layers-panel')).toBeHidden();
+  await expect(page.locator('#layers-open')).toHaveAttribute('aria-expanded', 'false');
+});

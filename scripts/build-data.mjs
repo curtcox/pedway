@@ -2,6 +2,7 @@
 // from the monthly data-refresh workflow, then review the diff:
 //   node scripts/build-data.mjs            # writes data/
 //   node scripts/build-data.mjs --cache d  # also keeps raw Overpass replies in d/
+//   node scripts/build-data.mjs --only poi # rebuild one file; poi uses the committed Pedway
 // The browser never calls Overpass; it only loads the committed files.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,8 +15,9 @@ const ATTRIBUTION = '© OpenStreetMap contributors, ODbL 1.0 (https://www.openst
 const LOOP = '41.868,-87.645,41.895,-87.615';
 const [[S, W], [N, E]] = CHICAGO_BOUNDS;
 const CITY = `${S},${W},${N},${E}`;
-const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-const cacheDir = process.argv.includes('--cache') ? process.argv[process.argv.indexOf('--cache') + 1] : null;
+const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const option = name => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null;
+const cacheDir = option('--cache'), only = option('--only');
 
 async function overpass(name, query) {
   if (cacheDir) {
@@ -185,24 +187,109 @@ function buildStations(name, elements, pedwayVertices, lineLabel) {
   return collection(name, features);
 }
 
+// --- Places: food, restrooms, stores, museums and parks near the Pedway ------
+
+const NEAR = '41.862,-87.652,41.900,-87.608';
+const POI_QUERY = `[out:json][timeout:180];
+(
+ nwr["amenity"~"^(restaurant|cafe|fast_food|food_court|ice_cream|toilets|pharmacy|arts_centre)$"](${NEAR});
+ nwr["shop"~"^(supermarket|convenience|department_store|mall|chemist|greengrocer|bakery|deli)$"](${NEAR});
+ nwr["tourism"~"^(museum|gallery)$"](${NEAR});
+ nwr["leisure"~"^(park|garden)$"](${NEAR});
+ nwr["place"="square"](${NEAR});
+);
+out center tags;`;
+
+// Places farther than this from any Pedway vertex are left out, which keeps the
+// file small and the map about the Pedway rather than the whole city.
+// A place counts as "on the Pedway" when it is this close to a corridor, or a
+// little farther when OpenStreetMap puts it below street level.
+const POI_RADIUS_M = 400, ON_PEDWAY_M = 30, ON_PEDWAY_BELOW_M = 90;
+
+export function poiCategory(tags) {
+  const { amenity, shop, tourism, leisure, place } = tags;
+  if (['restaurant', 'cafe', 'fast_food', 'food_court', 'ice_cream'].includes(amenity)) return ['food', amenity];
+  if (['bakery', 'deli'].includes(shop)) return ['food', shop];
+  if (amenity === 'toilets') return tags.access === 'private' || tags.access === 'no' ? null : ['restroom', 'toilets'];
+  if (amenity === 'pharmacy' || shop === 'chemist') return ['store', 'pharmacy'];
+  if (['supermarket', 'convenience', 'department_store', 'mall', 'greengrocer'].includes(shop)) return ['store', shop];
+  if (['museum', 'gallery'].includes(tourism)) return ['museum', tourism];
+  if (amenity === 'arts_centre') return ['museum', 'arts_centre'];
+  if (['park', 'garden'].includes(leisure)) return ['park', leisure];
+  if (place === 'square') return ['park', 'plaza'];
+  return null;
+}
+
+export function buildPoi(elements, pedwayVertices) {
+  // A coarse grid over the Pedway vertices makes the distance test fast.
+  const cell = ([lat, lon]) => `${Math.floor(lat / 0.004)},${Math.floor(lon / 0.005)}`;
+  const grid = new Map();
+  for (const vertex of pedwayVertices) grid.set(cell(vertex), [...(grid.get(cell(vertex)) ?? []), vertex]);
+  const nearest = at => {
+    const [row, col] = cell(at).split(',').map(Number);
+    let best = Infinity;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++)
+      for (const vertex of grid.get(`${row + dr},${col + dc}`) ?? []) best = Math.min(best, metres(vertex, at));
+    return best;
+  };
+  const seen = new Set();
+  const features = elements.flatMap(e => {
+    const tags = e.tags ?? {}, lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon;
+    const found = poiCategory(tags);
+    if (!found || lat === undefined) return [];
+    const [category, kind] = found;
+    // Restrooms are useful unnamed; anything else without a name is hard to find on the ground.
+    if (!tags.name && category !== 'restroom') return [];
+    const distance = nearest([lat, lon]);
+    if (distance > POI_RADIUS_M) return [];
+    const key = `${category}|${tags.name ?? ''}|${Math.round(lat * 2000)}|${Math.round(lon * 2000)}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      type: 'Feature', id: `${e.type[0]}${e.id}`,
+      properties: clean({ category, kind, name: tags.name, hours: tags.opening_hours, level: tags.level,
+        wheelchair: wheel(tags.wheelchair), pedway: distance <= (below(tags) ? ON_PEDWAY_BELOW_M : ON_PEDWAY_M) || undefined,
+        osm: `${e.type}/${e.id}` }),
+      geometry: point(lat, lon),
+    }];
+  }).sort((a, b) => a.properties.category.localeCompare(b.properties.category) || a.id.localeCompare(b.id));
+  return collection('poi', features);
+}
+
 const CTA_LINES = ['Red', 'Blue', 'Brown', 'Green', 'Orange', 'Pink', 'Purple', 'Yellow'];
 const ctaLine = tags => CTA_LINES.find(line => new RegExp(`\\b${line}\\b`, 'i').test(`${tags.name ?? ''} ${tags.ref ?? ''}`));
 const metraLine = tags => (tags.ref || tags.name?.replace(/^Metra\s*/i, '').replace(/\s*[:(].*$/, '').replace(/\s*Line$/i, '').trim()) || null;
 
 async function main() {
-  const raw = await overpass('pedway', PEDWAY_QUERY);
-  const { pedway, access, vertices } = buildPedway(raw.elements);
-  const cta = buildStations('cta', (await overpass('cta', stationQuery('CTA'))).elements, vertices, ctaLine);
-  const metra = buildStations('metra', (await overpass('metra', stationQuery('Metra'))).elements, vertices, metraLine);
+  const built = {};
+  let vertices;
+  if (only === 'poi') {
+    const committed = JSON.parse(await fs.readFile(path.join(OUT, 'pedway.geojson'), 'utf8'));
+    vertices = committed.features.flatMap(f => f.geometry.coordinates.map(([lon, lat]) => [lat, lon]));
+  } else {
+    const raw = await overpass('pedway', PEDWAY_QUERY);
+    let pedway;
+    ({ pedway, access: built.access, vertices } = buildPedway(raw.elements));
+    built.pedway = pedway;
+    built.cta = buildStations('cta', (await overpass('cta', stationQuery('CTA'))).elements, vertices, ctaLine);
+    built.metra = buildStations('metra', (await overpass('metra', stationQuery('Metra'))).elements, vertices, metraLine);
+  }
+  built.poi = buildPoi((await overpass('poi', POI_QUERY)).elements, vertices);
+  const files = only ? { [only]: built[only] } : built;
+  if (!Object.values(files).every(Boolean)) throw new Error(`--only takes poi, or nothing to rebuild every file.`);
   await fs.mkdir(OUT, { recursive: true });
-  for (const [file, data] of Object.entries({ pedway, access, cta, metra })) {
+  for (const [file, data] of Object.entries(files)) {
     // One feature per line keeps monthly diffs readable.
     const body = `{"type":"FeatureCollection","name":${JSON.stringify(data.name)},"attribution":${JSON.stringify(data.attribution)},"features":[\n${data.features.map(f => JSON.stringify(f)).join(',\n')}\n]}\n`;
     await fs.writeFile(path.join(OUT, `${file}.geojson`), body);
     console.log(`${file}.geojson: ${data.features.length} features, ${(body.length / 1024).toFixed(0)} KB`);
   }
-  const km = pedway.features.reduce((sum, f) => sum + lengthOf(f.geometry.coordinates.map(([lon, lat]) => [lat, lon])), 0) / 1000;
-  console.log(`Pedway length: ${km.toFixed(1)} km`);
+  if (built.pedway) {
+    const km = built.pedway.features.reduce((sum, f) => sum + lengthOf(f.geometry.coordinates.map(([lon, lat]) => [lat, lon])), 0) / 1000;
+    console.log(`Pedway length: ${km.toFixed(1)} km`);
+  }
+  const counts = Object.groupBy(built.poi.features, f => f.properties.category);
+  console.log('Places: ' + Object.entries(counts).map(([category, list]) => `${category} ${list.length}`).join(', '));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) await main();

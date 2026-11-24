@@ -49,3 +49,55 @@ test('the data check catches broken files', async () => {
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('places sort into categories, skip private toilets and unnamed shops, and stay near the Pedway', async () => {
+  const { poiCategory, buildPoi } = await import('../scripts/build-data.mjs');
+  assert.deepEqual(poiCategory({ amenity: 'cafe' }), ['food', 'cafe']);
+  assert.deepEqual(poiCategory({ shop: 'chemist' }), ['store', 'pharmacy']);
+  assert.deepEqual(poiCategory({ place: 'square' }), ['park', 'plaza']);
+  assert.equal(poiCategory({ amenity: 'toilets', access: 'private' }), null);
+  assert.equal(poiCategory({ shop: 'shoes' }), null);
+  const vertices = [[41.8837, -87.6278]];
+  const poi = buildPoi([
+    { type: 'node', id: 1, lat: 41.8838, lon: -87.6278, tags: { amenity: 'cafe', name: 'Below', level: '-1' } },
+    { type: 'node', id: 2, lat: 41.8860, lon: -87.6278, tags: { amenity: 'cafe', name: 'Up the street' } },
+    { type: 'node', id: 3, lat: 41.8900, lon: -87.6278, tags: { amenity: 'cafe', name: 'Too far' } },
+    { type: 'node', id: 4, lat: 41.8840, lon: -87.6279, tags: { amenity: 'toilets' } },
+    { type: 'node', id: 5, lat: 41.8840, lon: -87.6279, tags: { shop: 'convenience' } },
+    { type: 'way', id: 6, center: { lat: 41.8826, lon: -87.6280 }, tags: { leisure: 'park', name: 'Plaza Park' } },
+  ], vertices);
+  assert.deepEqual(poi.features.map(f => f.id), ['n1', 'n2', 'w6', 'n4']);
+  assert.equal(poi.features[0].properties.pedway, true);
+  assert.equal(poi.features[1].properties.pedway, undefined);
+  assert.equal(poi.features[3].properties.category, 'restroom');
+});
+
+test('the data diff lists added, removed and changed features for the refresh pull request', async () => {
+  const { diffFeatures, summarize } = await import('../scripts/data-diff.mjs');
+  const fc = features => JSON.stringify({ type: 'FeatureCollection', features });
+  const a = { type: 'Feature', id: 'n1', properties: { name: 'Clark/Lake' } };
+  const b = { type: 'Feature', id: 'n2', properties: { name: 'Lake' } };
+  const c = { type: 'Feature', id: 'n3', properties: { kind: 'entrance' } };
+  const diff = diffFeatures(fc([a, b]), fc([{ ...a, properties: { name: 'Clark / Lake' } }, c]));
+  assert.deepEqual([diff.before, diff.after, diff.added.length, diff.removed.length, diff.changed.length], [2, 2, 1, 1, 1]);
+  const markdown = summarize([{ file: 'cta.geojson', diff }, { file: 'metra.geojson', diff: diffFeatures(fc([a]), fc([a])) }]);
+  assert.match(markdown, /\| cta\.geojson \| 2 \| 2 \| 1 \| 1 \| 1 \|/);
+  assert.match(markdown, /Added: entrance \(n3\)/);
+  assert.match(markdown, /Removed: Lake \(n2\)/);
+  assert.match(markdown, /Changed: Clark \/ Lake \(n1\)/);
+  assert.doesNotMatch(markdown, /### metra/);
+});
+
+test('line chips and place colours keep text and markers readable', async () => {
+  const { CTA_COLORS, textOn } = await import('../src/layers.js');
+  const { POI_CATEGORIES } = await import('../src/data-layers.js');
+  const luminance = hex => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  // WCAG 1.4.3: chip text is small, so it needs 4.5:1.
+  for (const [line, color] of Object.entries({ ...CTA_COLORS, Metra: '#005596' })) assert.ok(contrast(color, textOn(color)) >= 4.5, line);
+  // WCAG 1.4.11: place markers sit on light map tiles and need 3:1 against white.
+  for (const { key, color } of POI_CATEGORIES) assert.ok(contrast(color, '#ffffff') >= 3, key);
+});
