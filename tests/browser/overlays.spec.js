@@ -62,6 +62,8 @@ test('overlays travel in the link, and become this viewer’s default for new ma
 test('the grid redraws as the map moves and keeps its readout current', async ({ page }) => {
   await open(page);
   await open(page, await build(page, { src: '', map: { overlays: { usng: true } } }));
+  await page.evaluate(() => pedway.data.loaded);
+  await page.waitForFunction(() => !pedway.map._animatingZoom && !pedway.map._panAnim?._inProgress);
   const before = await page.locator('#readout-usng').textContent();
   await page.evaluate(() => { pedway.map.panBy([300, 0], { animate: false }); });
   await expect(page.locator('#readout-usng')).not.toHaveText(before);

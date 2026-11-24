@@ -13,8 +13,9 @@ const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111000, (a.lon - b.lon) * 
 
 test('a pin popup shows its location in the chosen format, remembered by this browser only', async ({ page }) => {
   await open(page, './?example=stations');
-  const href = await written(page);
   await openPin(page, 'clark-lake');
+  // Opening the popup may pan the map, which rightly updates the link: read it after.
+  const href = await written(page);
   const view = popup(page).locator('.location-view');
   await expect(view.locator('.location-value')).toHaveText(/^41\.885\d+, -87\.630\d+$/);
 
