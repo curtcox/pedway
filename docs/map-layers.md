@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0–L5 done** (2026-11-24); L6–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
+Status: **L0–L6 done** (2026-11-24); L7 (optional) proposed. See [L0 results](#l0-results) and [As built](#as-built).
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -228,7 +228,7 @@ rather than drawing more.
 | **L3** ✓ | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
 | **L4** ✓ | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
 | **L5** ✓ | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
-| **L6** | `stage --self-contained` and its blocked-network test; About lists every external host and when it is used | The self-contained site passes the browser suite with all external requests blocked. |
+| **L6** ✓ | `stage --self-contained` and its blocked-network test; About lists every external host and when it is used | The self-contained site passes the browser suite with all external requests blocked. |
 | **L7** (optional) | Measure PMTiles + protomaps-leaflet for a citywide self-hosted base; prototype the Pedway schematic view | A written go/no-go for each, with sizes. |
 
 L2 needs no new data and can ship first. L3 and L4 are independent of each
@@ -258,8 +258,8 @@ other. L5 needs L1 and L4.
 
 1. ~~Confirm the self-hosted box after L0.~~ Kept (L0 results).
 2. Should the base map rebuild monthly with the rest of the data, or quarterly?
-3. Is a self-contained deployment (L6) wanted as a second published site, or
-   only as a build option?
+3. Is a self-contained deployment (L6) wanted as a second published site? It is
+   a build option for now (`stage --self-contained`).
 
 ## L0 results
 
@@ -465,3 +465,28 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
   serialize.
 * **Not done:** a check on a real mid-range phone. L0's throttled emulation
   measured about 0.37 s to draw and 0.15 s after a pan.
+
+### L6 (2026-11-24)
+
+* `npm run stage -- --self-contained` stages a copy whose
+  `src/deployment.js` says `SELF_CONTAINED = true` and whose Content Security
+  Policy names no other host, so the browser refuses any outside request that
+  slips through. In that copy:
+  * no tile layer exists, the base choice offers only the downtown map or none,
+    and links asking for `both` or `osm` show the downtown map alone;
+  * search reads coordinates, addresses, corners and names as before, and says
+    it cannot look anything else up instead of asking Nominatim;
+  * HashBin links explain that they need the full site.
+* About now has an *Other servers* section listing every host the full site may
+  contact and when (`EXTERNAL_HOSTS` in `src/deployment.js`), or saying the copy
+  contacts none. The *Open in…* links are ordinary links the viewer chooses to
+  follow, so they stay.
+* `tests/browser/self-contained.spec.js` stages the copy, blocks every request
+  to another origin and fails if any is made, with all four overlays on, zoomed
+  out past the box, searching, and opening a HashBin link.
+* Share links still name `curtcox.github.io/pedway` (`canonicalOrigin` in
+  `src/config.js`). A copy hosted elsewhere would set its own.
+* The popup close button grew from 24 to 32 px: axe's target-size check
+  sometimes failed on phones when another control sat beside it.
+* **Still open:** whether to publish the self-contained copy as a second site.
+  Today it is a build option only.

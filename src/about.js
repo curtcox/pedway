@@ -1,5 +1,6 @@
 // About: what the app is, where its data comes from, what it sends where, and keyboard use.
 import { createDialog, element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
+import { SELF_CONTAINED, EXTERNAL_HOSTS } from './deployment.js';
 
 const link = (text, href) => element('a', text, { href, target: '_blank', rel: 'noopener noreferrer' });
 function paragraph(...parts) {
@@ -29,9 +30,15 @@ export function createAbout() {
     list([
       'Maps live in their links and, if you save them, in this browser’s library. There is no account and no tracking.',
       'Your location is used only after you tap ◎, and stays on this device.',
-      'Addresses the app cannot work out itself are sent to OpenStreetMap’s Nominatim service, only when you press Go.',
+      SELF_CONTAINED ? 'Nothing you type is sent anywhere.' : 'Addresses the app cannot work out itself are sent to OpenStreetMap’s Nominatim service, only when you press Go.',
       'Pictures in pin notes are shown as links, so opening a shared map loads nothing from other sites.',
     ]),
+    element('h3', 'Other servers'),
+    ...(SELF_CONTAINED
+      ? [element('p', 'This copy contacts no server but the one it came from: the downtown map, the data and search all come with it. Map tiles beyond downtown, address lookup and HashBin links are not available.', { id: 'about-servers' })]
+      : [element('p', 'Besides the site itself, Pedway Tools may contact:', { id: 'about-servers' }),
+        list(EXTERNAL_HOSTS.map(({ host, use }) => [element('code', host), ` — ${use}`]))]),
+    paragraph('Links under “Open in…” go to Google Maps, Apple Maps or OpenStreetMap only when you follow them.'),
     element('h3', 'Keyboard'),
     list([
       'Tab moves between the toolbar, search, map controls, pins and the map. With the map focused, arrow keys pan and + and − zoom.',

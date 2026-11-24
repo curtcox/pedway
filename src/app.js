@@ -8,6 +8,7 @@ import { createShare } from './share.js';
 import { pinAt, pinLocation, inChicago, LIMITS, LAYERS, OVERLAYS, LEVELS, BASES } from './doc.js';
 import { createDataLayers, createPanes, POI_KINDS } from './layers.js';
 import { tileInsideBox } from './base-map.js';
+import { SELF_CONTAINED } from './deployment.js';
 import { createOverlays } from './overlays/overlays.js';
 import { createReadout } from './overlays/readout.js';
 import { createCorners, drawCornerLabels } from './overlays/corners.js';
@@ -53,7 +54,7 @@ const still = matchMedia('(prefers-reduced-motion: reduce)').matches, motion = s
 const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8, zoomControl: false,
   zoomAnimation: !still, fadeAnimation: !still, markerZoomAnimation: !still, inertia: !still });
 // Search first so it sits at the top left, above zoom and "my location".
-const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place),
+const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place), addressLookup: !SELF_CONTAINED,
   snapCorner: (label, lat, lon) => corners.snap(label, lat, lon) });
 L.control.zoom({ position: 'topleft' }).addTo(map);
 // CORS tiles can be kept by the offline worker without the quota cost of opaque responses.
@@ -64,8 +65,8 @@ const MaskedTiles = L.TileLayer.extend({
     return L.TileLayer.prototype._isValidTile.call(this, coords);
   },
 });
-// The data layers add the tiles when the map's base needs them.
-const tiles = new MaskedTiles(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true });
+// The data layers add the tiles when the map's base needs them. A self-contained copy has none.
+const tiles = SELF_CONTAINED ? null : new MaskedTiles(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true });
 map.attributionControl.addAttribution(TILE_ATTRIBUTION);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
 const pins = createPinLayer(L, map, {
@@ -221,6 +222,7 @@ async function navigate(href = location.href) {
       if (!example) throw new Error(`There is no example map called “${intent.id}”.`);
       doc = example.document;
     } else if (intent.kind === 'cid') {
+      if (SELF_CONTAINED) throw new Error('This copy of Pedway Tools contacts no other server, so it cannot open maps saved to HashBin. Open the link on curtcox.github.io/pedway instead.');
       setStatus('Loading saved map…');
       doc = await store.load(intent.cid);
     } else if (intent.kind === 'publish') throw new Error('Saving to HashBin is not set up for Pedway Tools yet.');

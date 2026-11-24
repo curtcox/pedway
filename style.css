@@ -146,3 +146,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .base-label-water span { color: #1f5f8b; font-style: italic; }
 .base-label-park span { color: #2f6b1f; }
 .base-label-building span { color: #5b5047; font-size: 10px; }
+/* A larger popup close button: easier to tap, and clear of WCAG 2.2's 24 px target spacing whatever lies beside it. */
+.leaflet-container a.leaflet-popup-close-button { width: 32px; height: 32px; font: 22px/32px Tahoma, Verdana, sans-serif; }
+.leaflet-popup-content { margin-right: 32px; }

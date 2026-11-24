@@ -3,6 +3,10 @@ import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
 import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM, OVERLAYS, BASE_MODES } from './map-layers.js';
 import { createBaseMap } from './base-map.js';
+import { SELF_CONTAINED } from './deployment.js';
+// A self-contained copy never fetches tiles: both and osm become the downtown map alone.
+const effectiveBase = base => SELF_CONTAINED && (base === 'both' || base === 'osm') ? 'local' : base;
+const BASE_CHOICES = BASE_MODES.filter(mode => !SELF_CONTAINED || mode.key === 'local' || mode.key === 'none');
 import { LEVELS } from './doc.js';
 import { externalLinks } from './external.js';
 import { fetchSnapshot } from './data-snapshot.js';
@@ -134,12 +138,13 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
     state = { layers: { ...next.layers }, overlays: { ...next.overlays }, level: next.level, base: next.base ?? 'both', gps: Boolean(next.gps) };
     // Base map: the downtown map for both and local; OpenStreetMap's tiles for osm, and
     // for both outside the downtown box (everywhere, if the snapshot has no downtown map).
-    const local = localAvailable && (state.base === 'both' || state.base === 'local');
-    const raster = state.base === 'osm' || state.base === 'both';
+    const base = effectiveBase(state.base);
+    const local = localAvailable && (base === 'both' || base === 'local');
+    const raster = base === 'osm' || base === 'both';
     baseMap.show(state.layers, local);
     baseMap.dim(state.level === 'pedway');
     if (tiles) {
-      const skip = local && state.base === 'both';
+      const skip = local && base === 'both';
       if (tiles.options.skipInsideBox !== skip) { tiles.options.skipInsideBox = skip; if (map.hasLayer(tiles)) tiles.redraw(); }
       if (raster && baseKnown) tiles.addTo(map); else tiles.remove();
     }
@@ -164,7 +169,7 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
       const sheet = element('div', null, { id: 'layers-panel', className: 'layers-panel', hidden: '' });
       const boxes = new Map(), overlayBoxes = new Map();
       const baseMode = element('select', null, { id: 'base-mode', 'aria-label': 'Base map' });
-      for (const mode of BASE_MODES) baseMode.append(element('option', mode.title, { value: mode.key }));
+      for (const mode of BASE_CHOICES) baseMode.append(element('option', mode.title, { value: mode.key }));
       baseMode.onchange = () => onChange({ ...state, base: baseMode.value });
       const baseNote = element('p', 'This data snapshot has no downtown map; OpenStreetMap tiles are used instead.', { className: 'layers-note', id: 'base-note', hidden: '' });
       const placesNote = element('p', 'Zoom in to see places.', { className: 'layers-note', id: 'layers-zoom-note' });
@@ -225,8 +230,9 @@ export function createDataLayers(L, map, { tiles, overlays, readout, onChange, o
         level.value = state.level;
         offer.checked = state.gps;
         for (const layer of MAP_LAYERS) if (layer.streetHides) boxes.get(layer.key).disabled = state.level === 'street';
-        baseMode.value = state.base;
-        const local = localAvailable && (state.base === 'both' || state.base === 'local');
+        const base = effectiveBase(state.base);
+        baseMode.value = base;
+        const local = localAvailable && (base === 'both' || base === 'local');
         for (const layer of MAP_LAYERS) if (layer.group === 'base') boxes.get(layer.key).disabled = !local;
         baseNote.hidden = localAvailable || !manifest;
         placesNote.hidden = map.getZoom() >= POI_MIN_ZOOM;

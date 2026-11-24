@@ -20,6 +20,7 @@ npm run data:check       # validate every data snapshot
 npm run data:list        # list snapshots; * marks the one data/current.json names
 npm run data:use -- 2026-11-24   # point data/current.json at another snapshot
 npm run stage -- --data 2026-11-24   # stage the site with a chosen snapshot
+npm run stage -- --self-contained   # stage a copy that contacts no other server (no tiles, address lookup or HashBin)
 node scripts/data-diff.mjs  # summarise the current snapshot against the one before it
 node scripts/build-at.mjs --app <git ref> --data <id>   # build any app version with any snapshot into _build/
 npx playwright test --config tests/compat/playwright.config.js   # check the sites in _build/ run
@@ -48,5 +49,10 @@ workflow do not start CI by themselves: run **CI and Pages** on the branch.
 `tests/browser/a11y.spec.js` runs axe-core against the page, popups and dialogs
 and fails on any WCAG 2.2 A/AA problem it finds.
 
-Map tiles and the Pedway, entrance, station and place data in `data/` are © OpenStreetMap
+The map has independent layers: a self-hosted downtown base map drawn from the data
+(water, parks, streets, rail, buildings and labels), OpenStreetMap tiles beyond it,
+the Pedway and transit, places, and lat/long, geohash, USNG and address-grid
+overlays. See [docs/map-layers.md](docs/map-layers.md).
+
+Map tiles and all the data in `data/` (the Pedway, entrances, stations, places, the base map and corners) are © OpenStreetMap
 contributors, available under the Open Database License (ODbL).

@@ -22,7 +22,8 @@ export function matchNames(places, query, limit = 6) {
 }
 
 // snapCorner(label, lat, lon) may move a corner the grid model placed to where the data has it.
-export function createSearch(L, map, { places, onPick, snapCorner = () => null }) {
+// addressLookup: false (a self-contained copy) never asks OpenStreetMap.
+export function createSearch(L, map, { places, onPick, snapCorner = () => null, addressLookup = true }) {
   const form = element('form', null, { className: 'search-form', role: 'search' });
   const input = element('input', null, { type: 'search', id: 'search-input', placeholder: 'Search: address, corner, station, 41.88,-87.63…',
     'aria-label': 'Search for a place', autocomplete: 'off', enterkeyhint: 'search', 'aria-controls': 'search-results', 'aria-describedby': 'search-note' });
@@ -94,6 +95,7 @@ export function createSearch(L, map, { places, onPick, snapCorner = () => null }
     if (named.length) { show(named); return say('Choose a place.'); }
     // 3. Only now, and only because the user pressed search, ask OpenStreetMap.
     show([]);
+    if (!addressLookup) return say('This copy of Pedway Tools contacts no other server, so it cannot look that up. Try an address like 123 N State St, a corner like Clark & Lake, or coordinates.');
     say('Looking up the address at OpenStreetMap…');
     go.disabled = true;
     try {
@@ -107,6 +109,7 @@ export function createSearch(L, map, { places, onPick, snapCorner = () => null }
       go.disabled = false;
     }
   });
-  input.title = 'Addresses the app cannot work out itself are looked up at OpenStreetMap (Nominatim) when you press Go; what you typed is sent there.';
+  input.title = addressLookup ? 'Addresses the app cannot work out itself are looked up at OpenStreetMap (Nominatim) when you press Go; what you typed is sent there.'
+    : 'Search reads coordinates, Chicago addresses and corners, and the names of stations, entrances, places and pins. Nothing you type leaves this device.';
   return { input, form, results, close };
 }
