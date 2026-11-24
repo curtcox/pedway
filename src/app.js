@@ -3,7 +3,9 @@ import { config, type, urlState } from './state.js';
 import { CHICAGO_BOUNDS, MIN_ZOOM, MAX_ZOOM, TILE_URL, TILE_ATTRIBUTION, LOOP_CENTER, DEFAULT_ZOOM } from './map-defaults.js';
 import { examples } from './examples.js';
 import { createPinLayer } from './pins.js';
+import { createPinEditor } from './pin-editor.js';
 import { createShare } from './share.js';
+import { pinAt, inChicago, LIMITS } from './doc.js';
 
 const L = globalThis.L;
 const status = document.getElementById('app-status');
@@ -15,8 +17,9 @@ const fingerprint = doc => JSON.stringify(doc);
 let written = fingerprint(current);
 
 const shell = createShell({ config, actions: [
+  { label: 'Add pin', id: 'pin-add', onClick: () => placing ? stopPlacing() : startPlacing() },
   { label: 'Share', id: 'share-open', onClick: () => share.open() },
-  { label: 'QR code', id: 'qr-open', onClick: () => qr.open(urlState.build(snapshot()).href) },
+  { label: 'QR code', id: 'qr-open', extra: true, onClick: () => qr.open(urlState.build(snapshot()).href) },
   { label: 'Loop', id: 'recenter', onClick: () => recenter() },
   { label: 'Download', id: 'download', extra: true, onClick: () => download(new Blob([urlState.documents.serialize(snapshot())], { type: 'application/json' }), type.fileName) },
 ] });
@@ -27,7 +30,14 @@ const [[south, west], [north, east]] = CHICAGO_BOUNDS;
 const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8 });
 L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION }).addTo(map);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
-const pins = createPinLayer(L, map);
+const pins = createPinLayer(L, map, {
+  onEdit: id => { const pin = findPin(id); if (pin) { pins.close(); editor.open(pin); } },
+  onMove: (id, lat, lon) => setPins(current.map.pins.map(p => p.id === id ? pinAt(lat, lon, p) : p)),
+});
+const editor = createPinEditor({
+  onSave: pin => { setPins(current.map.pins.map(p => p.id === pin.id ? pin : p)); pins.open(pin.id); },
+  onDelete: id => setPins(current.map.pins.filter(p => p.id !== id)),
+});
 
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 function snapshot() {
@@ -35,7 +45,51 @@ function snapshot() {
   return type.normalize({ src: title.value, map: { ...current.map,
     view: { c: [clamp(center.lat, south, north), clamp(center.lng, west, east)], z: clamp(Math.round(map.getZoom()), MIN_ZOOM, MAX_ZOOM) } } });
 }
-function setStatus(message) { status.textContent = message; status.hidden = !message; }
+function setStatus(message, ...extra) { status.replaceChildren(message, ...extra); status.hidden = !message; }
+
+// Pins: every change replaces the list, redraws, and writes the URL.
+const findPin = id => current.map.pins.find(pin => pin.id === id);
+function setPins(list) {
+  current = type.normalize({ ...current, src: title.value, map: { ...current.map, pins: list } });
+  pins.render(current.map.pins);
+  changed();
+}
+function nextId() {
+  const ids = new Set(current.map.pins.map(pin => pin.id));
+  let n = current.map.pins.length + 1;
+  while (ids.has('p' + n)) n++;
+  return 'p' + n;
+}
+function addPin(lat, lon) {
+  stopPlacing();
+  if (!inChicago(lat, lon)) return setStatus('Pins must be in the Chicago area.');
+  if (current.map.pins.length >= LIMITS.pins) return setStatus(`A map can have at most ${LIMITS.pins} pins.`);
+  const pin = pinAt(lat, lon, { id: nextId() });
+  setPins([...current.map.pins, pin]);
+  editor.open(findPin(pin.id));
+}
+
+// "Add pin" waits for a tap on the map; the status bar offers the map centre for keyboard users.
+let placing = false;
+const placeHere = element('button', 'Place at map centre', { type: 'button', id: 'pin-place-centre' });
+const stopButton = element('button', 'Cancel', { type: 'button', id: 'pin-place-cancel' });
+placeHere.onclick = () => { const { lat, lng } = map.getCenter(); addPin(lat, lng); };
+stopButton.onclick = () => stopPlacing();
+function startPlacing() {
+  placing = true; map.getContainer().classList.add('placing');
+  document.getElementById('pin-add').setAttribute('aria-pressed', 'true');
+  setStatus('Tap the map where the pin should go. ', placeHere, stopButton);
+}
+function stopPlacing() {
+  if (!placing) return;
+  placing = false; map.getContainer().classList.remove('placing');
+  document.getElementById('pin-add').setAttribute('aria-pressed', 'false');
+  setStatus('');
+}
+map.on('click', event => { if (placing) addPin(event.latlng.lat, event.latlng.lng); });
+// Right-click, or a long press on touch screens, drops a pin directly.
+map.on('contextmenu', event => addPin(event.latlng.lat, event.latlng.lng));
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && placing) stopPlacing(); });
 
 // Leaflet 1.9 drops a setView made while a zoom animation is running: the
 // animation's end restores its own target. Wait for it to finish first.
@@ -109,6 +163,6 @@ window.addEventListener('popstate', navigateFromEvent);
 await navigate();
 
 // Exposed for browser tests and debugging.
-globalThis.pedway = { map, shell, urlState, snapshot, examples };
+globalThis.pedway = { map, shell, urlState, snapshot, examples, pins };
 document.body.dataset.ready = 'true';
 document.documentElement.dataset.ready = 'true';

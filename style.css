@@ -11,10 +11,37 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .pin-marker { background: none; border: 0; }
 .pin-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--pin-color, #c0392b); color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .45); box-sizing: border-box; }
 .pin-popup h3 { margin: 0 0 4px; font-size: 1rem; }
-.pin-note { margin: 0; white-space: pre-wrap; max-width: 260px; max-height: 240px; overflow: auto; }
+.pin-note { margin: 0; max-width: 260px; max-height: 240px; overflow: auto; }
 #share-link { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace; word-break: break-all; }
 .share-note { margin-top: 0; color: var(--fk-muted, #555); }
 @media (max-width: 480px) {
   #map-title { min-width: 0; flex: 1 1 5em; }
   .fk-compact > .fk-toolbar button { padding: 8px 10px; }
 }
+#map.placing, #map.placing .leaflet-interactive { cursor: crosshair; }
+#app-status button { margin-left: 8px; padding: 4px 10px; }
+#pin-add[aria-pressed="true"] { outline: 2px solid currentColor; }
+#pin-dialog { width: min(560px, calc(100vw - 32px)); }
+#pin-form { display: grid; gap: 12px; }
+.pin-field { display: grid; gap: 4px; }
+.pin-field > span { font-weight: 600; }
+.pin-field small { color: var(--fk-muted, #555); }
+.pin-field input[type="text"], .pin-field select, .pin-field textarea { font: inherit; padding: 8px; border: 1px solid var(--fk-border, #ccc); border-radius: 6px; background: transparent; color: inherit; box-sizing: border-box; width: 100%; }
+.pin-field input[type="color"] { width: 64px; height: 38px; padding: 2px; }
+.pin-row { display: flex; gap: 16px; align-items: end; }
+.pin-row .pin-field:first-child { flex: 1; }
+.pin-preview-heading { margin: 0; font-size: .9rem; }
+.pin-preview { border: 1px dashed var(--fk-border, #ccc); border-radius: 6px; padding: 8px; max-height: 200px; overflow: auto; max-width: none; }
+.pin-where { margin: 0; font-size: .8rem; color: var(--fk-muted, #555); }
+.pin-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.pin-buttons .danger { margin-left: auto; color: #b03a2e; }
+.pin-note { white-space: normal; }
+.pin-note p { margin: 0 0 .5em; }
+.pin-note :is(h1, h2, h3, h4, h5, h6) { font-size: 1rem; margin: .5em 0 .25em; }
+.pin-note ul, .pin-note ol { padding-left: 1.25em; margin: 0 0 .5em; }
+.pin-note pre { white-space: pre-wrap; }
+.pin-edit { margin-top: 8px; padding: 4px 12px; }
+#pin-dialog { max-height: calc(100dvh - 24px); overflow: auto; }
+#pin-dialog .pin-preview { max-height: 140px; }
+#pin-form { gap: 10px; }
+.pin-buttons { position: sticky; bottom: -1px; padding: 8px 0 2px; background: var(--fk-surface, #fff); }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { blankTiles, open, snapshot, build, written } from './helpers.js';
+import { blankTiles, open, snapshot, build, written, popup } from './helpers.js';
 
 test.beforeEach(({ page }) => blankTiles(page));
 
@@ -86,9 +86,10 @@ test('pin text is shown as text, never as HTML', async ({ page }) => {
   const doc = { src: '<img src=x onerror=alert(1)>', map: { pins: [{ id: 'x', at: 'dp3wmbxqh', label: '<b>bold</b>', md: '<script>alert(1)</script>' }] } };
   await open(page, await build(page, doc));
   await page.locator('.pin-marker').click();
-  await expect(page.locator('.pin-popup h3')).toHaveText('<b>bold</b>');
-  await expect(page.locator('.pin-note')).toHaveText('<script>alert(1)</script>');
-  expect(await page.locator('.pin-popup b, .pin-popup script').count()).toBe(0);
+  await expect(popup(page).locator('h3')).toHaveText('<b>bold</b>');
+  await expect(page.locator('#map-title')).toHaveValue('<img src=x onerror=alert(1)>');
+  // Notes are markdown; raw HTML in them is sanitised away (see pins.spec.js).
+  expect(await page.locator('.pin-popup b, .pin-popup script, .pin-popup img').count()).toBe(0);
 });
 
 test('the examples page links open the map page', async ({ page }) => {

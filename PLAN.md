@@ -201,6 +201,17 @@ the project.
   covers the same link guarantees.
 * Level and layer settings are stored and round-trip, but have no controls until M4.
 
+### M2 notes (2026-11-23)
+
+* Pins: use **Add pin** then tap the map, use **Place at map centre** from the keyboard, or right-click
+  or long-press the map. Drag a pin to move it. **Edit** in a pin's popup opens a
+  dialog for label, icon, colour and a markdown note with a live preview.
+* Notes are rendered by marked 18.1.2 and sanitised by DOMPurify 3.4.17 (both
+  vendored). Only http(s), mailto and tel links survive, and they open in a new tab with
+  `rel="noopener noreferrer"`. Images become links rather than loading, so a shared map
+  cannot track whoever opens it. Task-list checkboxes are shown read-only.
+* On phones, **QR code** moves into **More**; Share still offers it.
+
 ## 8. Still open
 
 1. HashBin publishing needs a registered client ID. Until there is one, long

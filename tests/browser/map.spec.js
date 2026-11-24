@@ -18,6 +18,8 @@ test('shows a map of the Loop that can be panned and zoomed', async ({ page }) =
 
   await page.locator('.leaflet-control-zoom-in').click();
   await expect.poll(async () => (await view()).zoom).toBe(start.zoom + 1);
+  // getZoom() reports the target before the animation ends; Leaflet drops pans made during it.
+  await expect.poll(() => page.evaluate(() => pedway.map._animatingZoom)).toBe(false);
 
   await page.evaluate(() => pedway.map.panBy([200, 0], { animate: false }));
   expect((await view()).lng).toBeGreaterThan(start.lng);

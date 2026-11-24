@@ -17,3 +17,5 @@ export async function written(page) {
   await page.waitForTimeout(400);
   return page.url();
 }
+// Leaflet fades a closed popup out over 200 ms, so briefly two can exist; the newest is last.
+export const popup = page => page.locator('.leaflet-popup').last();
