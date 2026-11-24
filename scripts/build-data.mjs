@@ -16,6 +16,7 @@ const LOOP = '41.868,-87.645,41.895,-87.615';
 const [[S, W], [N, E]] = CHICAGO_BOUNDS;
 const CITY = `${S},${W},${N},${E}`;
 const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const ATTEMPTS = 9;
 const option = name => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null;
 const cacheDir = option('--cache'), only = option('--only');
 
@@ -24,7 +25,8 @@ async function overpass(name, query) {
     try { return JSON.parse(await fs.readFile(path.join(cacheDir, `${name}.json`), 'utf8')); } catch { /* fetch it */ }
   }
   let lastError;
-  for (let attempt = 0; attempt < 6; attempt++) {
+  // Public Overpass servers are often busy: back off patiently (about 9 minutes in all) rather than hammer them.
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
     const endpoint = ENDPOINTS[attempt % ENDPOINTS.length];
     try {
       const response = await fetch(endpoint, { method: 'POST', headers: { 'User-Agent': 'pedway-tools-data-build' }, body: new URLSearchParams({ data: query }) });
@@ -35,7 +37,7 @@ async function overpass(name, query) {
     } catch (error) {
       lastError = error;
       console.error(`${name}: ${error.message}; retrying`);
-      await new Promise(resolve => setTimeout(resolve, 5000 * (attempt + 1)));
+      if (attempt < ATTEMPTS - 1) await new Promise(resolve => setTimeout(resolve, Math.min(90, 15 * (attempt + 1)) * 1000));
     }
   }
   throw lastError;
