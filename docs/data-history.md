@@ -1,7 +1,7 @@
 # Data history plan
 
-Status: **H1 done** (2026-11-24); H2–H4 proposed. It follows M7 in [PLAN.md](../PLAN.md).
-See [H1 as built](#h1-as-built) at the end.
+Status: **H1 and H2 done** (2026-11-24); H3–H4 proposed. It follows M7 in [PLAN.md](../PLAN.md).
+See [H1 as built](#h1-as-built) and [H2 as built](#h2-as-built) at the end.
 
 ## Goal
 
@@ -187,8 +187,9 @@ So HashBin can be a mirror, but **not the only copy** of anything:
    migrating if a migration exists, and stops with a clear message otherwise.
 4. Runs that ref's `stage.mjs` into `--out`.
 
-App refs from before this plan, which have no manifest loader, are built from
-their own commit's data only. That is a known limit of history before Phase 1.
+App refs from before this plan have no manifest loader. H2 still builds them
+with any schema-1 snapshot, by writing its files in the flat layout they read
+(see [H2 as built](#h2-as-built)).
 
 ### 7. How each kind of change flows
 
@@ -307,4 +308,40 @@ order. H4 waits on PLAN.md §8.1.
 * The refresh workflow detects new (untracked) files, names the PR after the
   snapshot, and copies its additions over the newest main. `data-tag.yml` tags
   `data-<id>` when `current.json` first names a snapshot on main.
+
+## H2 as built
+
+* `scripts/build-at.mjs --app <ref> [--data <id>] [--out <dir>]` checks the app
+  out into a temporary `git worktree`. It writes the chosen snapshot from *this*
+  checkout into that app's `data/`, runs that app's own `scripts/stage.mjs`,
+  copies the result to `--out` (default `_build/<ref>-<id>`), and adds
+  `build-info.json`: app ref and commit, snapshot, schema, migration, and the
+  commit that did the build. It needs neither the network nor `npm`. The worktree
+  is always removed.
+* It handles three kinds of app version, by what the checkout contains:
+  * **snapshot**, from H1 on, with `src/data-snapshot.js`. It reads that
+    version's own `DATA_SCHEMA.accepts` and layer list, and writes a snapshot,
+    migrated if needed.
+  * **flat**, M4 to M7, with `src/data-layers.js` but no snapshots. It writes
+    `data/<layer>.geojson` for that version's layers. These apps came before
+    schema versions, and their data is schema 1.
+  * **none**, M0 to M3. No data is written.
+  So every commit since M0 builds with today's data, not only commits from H1 on,
+  as the plan first expected.
+* **Migrations** live in `scripts/migrate-data.mjs`. `MIGRATIONS[n]` turns schema
+  *n* texts into *n*+1, and `mapProperties` helps write them. There are none yet,
+  because the schema is still 1. Both `stage.mjs` and `build-at.mjs` migrate an
+  older snapshot up to a schema the app reads. A migrated manifest records
+  `migratedFrom`, and its changed files get their own hashes. Data newer than
+  the app is refused, saying so, since migrations only go up.
+* `node scripts/snapshots.mjs oldest` prints the oldest snapshot this app reads.
+* **CI** (`compat` job in `ci.yml`, full-history checkout):
+  * builds M7 and M4 with today's data, and HEAD with the oldest snapshot it
+    reads;
+  * `tests/compat/builds.spec.js` serves each build and checks it loads, draws
+    every layer and throws no errors;
+  * when the oldest readable snapshot is not the current one, it points
+    `current.json` at it and runs the full Chromium browser suite.
+  The job does not gate the deploy: a compatibility break should be fixed, but it
+  does not make the current site wrong.
 

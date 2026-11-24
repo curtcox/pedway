@@ -5,3 +5,4 @@ playwright-report/
 .DS_Store
 .offline-test-*/
 .stage-test-*/
+_build/

@@ -1,11 +1,12 @@
 // Reads and writes data snapshots on disk (see src/data-snapshot.js and docs/data-history.md).
 //   node scripts/snapshots.mjs                 list snapshots, marking the current one
 //   node scripts/snapshots.mjs use <id>        point data/current.json at another snapshot
+//   node scripts/snapshots.mjs oldest          print the oldest snapshot this app can read
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DATA_LAYERS, DATA_SCHEMA } from '../src/data-layers.js';
-import { makeCurrent, readCurrent, validateManifest, sha256Hex, storePath, snapshotPath, SNAPSHOT_FORMAT, SNAPSHOT_ID } from '../src/data-snapshot.js';
+import { makeCurrent, readCurrent, validateManifest, acceptsSchema, sha256Hex, storePath, snapshotPath, SNAPSHOT_FORMAT, SNAPSHOT_ID } from '../src/data-snapshot.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 export const DATA_DIR = path.join(root, 'data');
@@ -49,6 +50,47 @@ export function geojsonText({ name, attribution, features }) {
   return `{"type":"FeatureCollection","name":${JSON.stringify(name)},"attribution":${JSON.stringify(attribution)},"features":[\n${features.map(f => JSON.stringify(f)).join(',\n')}\n]}\n`;
 }
 
+/** The manifest entries for these texts: path, hash, size and feature count per layer. */
+export async function describeFiles(texts, layers = Object.keys(texts)) {
+  const files = {};
+  for (const layer of layers) {
+    const bytes = Buffer.from(texts[layer], 'utf8');
+    const sha256 = await sha256Hex(bytes);
+    files[layer] = { path: storePath(layer, sha256), sha256, bytes: bytes.length, features: JSON.parse(texts[layer]).features.length };
+  }
+  return files;
+}
+
+async function writeStore(dir, texts, files) {
+  for (const [layer, file] of Object.entries(files)) {
+    const target = path.join(dir, file.path);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    // Store files are immutable: an existing one already holds exactly these bytes.
+    await fs.writeFile(target, texts[layer], { flag: 'wx' }).catch(error => { if (error.code !== 'EEXIST') throw error; });
+  }
+}
+
+/**
+ * Writes one snapshot (manifest, store files and current.json) into a fresh data
+ * folder, such as a staged site. `manifest` supplies the id and metadata; the files
+ * are described anew from `texts`, so migrated texts get their own hashes.
+ */
+export async function materialize(dir, manifest, texts, { schema = manifest.schema, layers = Object.keys(texts), migratedFrom } = {}) {
+  const files = await describeFiles(texts, layers);
+  await writeStore(dir, texts, files);
+  const out = validateManifest({ ...manifest, schema, files, ...(migratedFrom !== undefined ? { migratedFrom } : {}) }, manifest.id);
+  await fs.mkdir(path.join(dir, 'snapshots'), { recursive: true });
+  await writeJson(path.join(dir, snapshotPath(out.id)), out);
+  await writeJson(path.join(dir, 'current.json'), makeCurrent(out.id));
+  return out;
+}
+
+/** The oldest snapshot this version of the app can read without migrating, or null. */
+export async function oldestAccepted(dir = DATA_DIR) {
+  for (const id of await listSnapshots(dir)) if (!acceptsSchema(await readManifest(dir, id))) return id;
+  return null;
+}
+
 /** Today's id, with -2, -3… when a snapshot already exists for the day. */
 export async function nextId(dir, date = new Date()) {
   const day = date.toISOString().slice(0, 10), taken = new Set(await listSnapshots(dir));
@@ -65,24 +107,14 @@ export async function writeSnapshot(dir, texts, { id = null, built = new Date(),
   const missing = DATA_LAYERS.map(layer => layer.key).filter(key => typeof texts[key] !== 'string');
   if (missing.length) throw new Error(`A snapshot needs every layer; missing ${missing.join(', ')}.`);
   const previous = await currentId(dir).catch(() => undefined);
-  const files = {};
-  for (const layer of DATA_LAYERS) {
-    const bytes = Buffer.from(texts[layer.key], 'utf8');
-    const sha256 = await sha256Hex(bytes);
-    files[layer.key] = { path: storePath(layer.key, sha256), sha256, bytes: bytes.length, features: JSON.parse(texts[layer.key]).features.length };
-  }
+  const files = await describeFiles(texts, DATA_LAYERS.map(layer => layer.key));
   if (previous) {
     const old = await readManifest(dir, previous);
     if (old.schema === DATA_SCHEMA.version && DATA_LAYERS.every(layer => old.files[layer.key]?.sha256 === files[layer.key].sha256)) return null;
   }
   const snapshot = id ?? await nextId(dir, built);
   if ((await listSnapshots(dir)).includes(snapshot)) throw new Error(`Snapshot ${snapshot} already exists; snapshots are never rewritten.`);
-  for (const layer of DATA_LAYERS) {
-    const target = path.join(dir, files[layer.key].path);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    // Store files are immutable: an existing one already holds exactly these bytes.
-    await fs.writeFile(target, texts[layer.key], { flag: 'wx' }).catch(error => { if (error.code !== 'EEXIST') throw error; });
-  }
+  await writeStore(dir, texts, files);
   const manifest = validateManifest({
     format: SNAPSHOT_FORMAT, version: 1, id: snapshot, schema: DATA_SCHEMA.version,
     built: built.toISOString(), ...(osmBase ? { osmBase } : {}), ...(builder ? { builder } : {}),
@@ -101,7 +133,13 @@ async function main() {
     console.log(`data/current.json now names ${id}.`);
     return;
   }
-  if (command) throw new Error('Usage: node scripts/snapshots.mjs [use <id>]');
+  if (command === 'oldest') {
+    const oldest = await oldestAccepted();
+    if (!oldest) throw new Error('No snapshot uses a schema this app reads.');
+    console.log(oldest);
+    return;
+  }
+  if (command) throw new Error('Usage: node scripts/snapshots.mjs [use <id> | oldest]');
   const current = await currentId().catch(() => null);
   for (const snapshot of await listSnapshots()) {
     const manifest = await readManifest(DATA_DIR, snapshot);

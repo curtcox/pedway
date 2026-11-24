@@ -25,3 +25,43 @@ jobs:
       stage-command: node scripts/stage.mjs _site
       path: _site
       verify-marker: pedway-tools-app
+  # Data history H2: the app and the data must stay buildable in other combinations.
+  compat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0   # build-at checks out older commits
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build older apps with today's data, and this app with the oldest snapshot it reads
+        run: |
+          oldest=$(node scripts/snapshots.mjs oldest)
+          node scripts/build-at.mjs --app 3726887 --out _build/m7-current          # M7, the last app before snapshots
+          node scripts/build-at.mjs --app 4d46e3e --out _build/m4-current          # M4, the first app that draws data
+          node scripts/build-at.mjs --app HEAD --data "$oldest" --out _build/head-oldest
+      - name: Check each build runs and shows its data
+        run: npx playwright test --config tests/compat/playwright.config.js
+      - name: Run the browser tests against the oldest snapshot this app reads
+        run: |
+          oldest=$(node scripts/snapshots.mjs oldest)
+          current=$(node -p "require('./data/current.json').snapshot")
+          if [ "$oldest" = "$current" ]; then
+            echo "The oldest readable snapshot is the current one ($current); the main browser jobs already cover it."
+            exit 0
+          fi
+          node scripts/snapshots.mjs use "$oldest"
+          python3 -m http.server 8000 --bind 127.0.0.1 &
+          until curl -sf http://127.0.0.1:8000/ >/dev/null; do sleep 0.5; done
+          BROWSERS=chromium MOBILE=false npx playwright test --config tests/browser/playwright.config.js
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: compat-results
+          path: test-results/
+          retention-days: 7

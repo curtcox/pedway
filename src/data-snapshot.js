@@ -45,6 +45,7 @@ export function validateManifest(manifest, id = manifest?.id) {
   for (const key of ['built', 'osmBase', 'attribution']) {
     if (manifest[key] !== undefined && typeof manifest[key] !== 'string') fail(`Snapshot ${id}: ${key} must be text.`);
   }
+  if (manifest.migratedFrom !== undefined && (!Number.isInteger(manifest.migratedFrom) || manifest.migratedFrom >= manifest.schema)) fail(`Snapshot ${id}: migratedFrom must be an older schema.`);
   if (!plain(manifest.files)) fail(`Snapshot ${id}: no files.`);
   for (const [layer, file] of Object.entries(manifest.files)) {
     if (!/^[a-z][a-z0-9-]{0,31}$/.test(layer)) fail(`Snapshot ${id}: bad layer name.`);

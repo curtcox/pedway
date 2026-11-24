@@ -403,5 +403,6 @@ the project.
 2. Custom domain, or `curtcox.github.io/pedway`? The default is the latter.
 3. Data history, so any app version can be built with any compatible snapshot
    from the repo alone or the repo plus HashBin: [docs/data-history.md](docs/data-history.md).
-   H1 (content-addressed snapshots, schema version, `stage --data`) is done;
-   H2 (`build-at.mjs`), H3 (raw replies in Releases) and H4 (HashBin) remain.
+   H1 (content-addressed snapshots, schema version, `stage --data`) and H2
+   (`build-at.mjs`, migrations, the CI `compat` job) are done; H3 (raw replies in
+   Releases) and H4 (HashBin) remain.

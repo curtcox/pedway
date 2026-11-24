@@ -21,6 +21,8 @@ npm run data:list        # list snapshots; * marks the one data/current.json nam
 npm run data:use -- 2026-11-24   # point data/current.json at another snapshot
 npm run stage -- --data 2026-11-24   # stage the site with a chosen snapshot
 node scripts/data-diff.mjs  # summarise the current snapshot against the one before it
+node scripts/build-at.mjs --app <git ref> --data <id>   # build any app version with any snapshot into _build/
+npx playwright test --config tests/compat/playwright.config.js   # check the sites in _build/ run
 ```
 
 Vendored dependencies are pinned in `vendor/`: Fragment Kit v0.5.0, synced
