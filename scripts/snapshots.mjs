@@ -104,13 +104,16 @@ export async function nextId(dir, date = new Date()) {
  * Returns null, writing nothing, when every file matches the current snapshot.
  */
 export async function writeSnapshot(dir, texts, { id = null, built = new Date(), osmBase, builder, attribution } = {}) {
-  const missing = DATA_LAYERS.map(layer => layer.key).filter(key => typeof texts[key] !== 'string');
-  if (missing.length) throw new Error(`A snapshot needs every layer; missing ${missing.join(', ')}.`);
+  const missing = DATA_LAYERS.filter(layer => !layer.optional).map(layer => layer.key).filter(key => typeof texts[key] !== 'string');
+  if (missing.length) throw new Error(`A snapshot needs every required layer; missing ${missing.join(', ')}.`);
+  // Optional layers (the base map, intersections) go in when they are given.
+  const keys = DATA_LAYERS.map(layer => layer.key).filter(key => typeof texts[key] === 'string');
   const previous = await currentId(dir).catch(() => undefined);
-  const files = await describeFiles(texts, DATA_LAYERS.map(layer => layer.key));
+  const files = await describeFiles(texts, keys);
   if (previous) {
     const old = await readManifest(dir, previous);
-    if (old.schema === DATA_SCHEMA.version && DATA_LAYERS.every(layer => old.files[layer.key]?.sha256 === files[layer.key].sha256)) return null;
+    const same = Object.keys(old.files).length === keys.length && keys.every(key => old.files[key]?.sha256 === files[key].sha256);
+    if (old.schema === DATA_SCHEMA.version && same) return null;
   }
   const snapshot = id ?? await nextId(dir, built);
   if ((await listSnapshots(dir)).includes(snapshot)) throw new Error(`Snapshot ${snapshot} already exists; snapshots are never rewritten.`);

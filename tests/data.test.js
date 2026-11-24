@@ -189,3 +189,29 @@ test('the layer registry draws every place category and every required data file
   for (const data of DATA_LAYERS.filter(layer => !layer.optional && layer.key !== 'intersections')) assert.ok(files.has(data.key), `${data.key} is drawn`);
   assert.equal(new Set(MAP_LAYERS.map(layer => layer.key)).size, MAP_LAYERS.length, 'keys are unique');
 });
+
+test('the base map has the lake, the river, Pedway buildings and named streets, all inside the base box', async () => {
+  const { BASE_BOX } = await import('../src/map-defaults.js');
+  const [[south, west], [north, east]] = BASE_BOX;
+  const water = await read('water.geojson'), buildings = await read('buildings.geojson'), streets = await read('streets.geojson');
+  assert.ok(water.features.some(f => f.properties.name === 'Lake Michigan'), 'Lake Michigan');
+  assert.ok(water.features.some(f => f.properties.kind === 'river'), 'the Chicago River');
+  const named = name => buildings.features.find(f => f.properties.name === name);
+  for (const name of ['Chicago Cultural Center', 'Richard J. Daley Center', 'Macy’s', 'Aon Center'].map(n => n.replace('’', "'"))) {
+    assert.equal(named(name)?.properties.pedway, true, `${name} is on the Pedway`);
+  }
+  assert.ok(streets.features.some(f => f.properties.name === 'North State Street' && f.properties.class === 'major'));
+  assert.ok(!streets.features.some(f => f.properties.class === 'path' && /sidewalk/i.test(f.properties.name ?? '')), 'no sidewalks');
+  for (const data of [water, buildings, streets, await read('labels.geojson')]) {
+    const points = JSON.stringify(data.features.map(f => f.geometry.coordinates)).match(/-?\d+\.\d+,-?\d+\.\d+/g).map(pair => pair.split(',').map(Number));
+    assert.ok(points.every(([lon, lat]) => lat >= south - 1e-6 && lat <= north + 1e-6 && lon >= west - 1e-6 && lon <= east + 1e-6), `${data.name} stays in the box`);
+  }
+});
+
+test('intersections name the streets at each downtown corner and rank the major ones', async () => {
+  const corners = (await read('intersections.geojson')).features;
+  const at = (a, b) => corners.filter(f => f.properties.streets.includes(a) && f.properties.streets.includes(b));
+  assert.ok(at('Clark', 'Lake').length >= 1, 'Clark & Lake');
+  assert.ok(at('State', 'Madison').every(f => f.properties.rank === 'major') && at('State', 'Madison').length, 'State & Madison is major');
+  assert.ok(corners.filter(f => f.properties.rank === 'major').length > 200);
+});

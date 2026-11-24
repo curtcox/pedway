@@ -16,6 +16,7 @@ import { DATA_DIR, currentId, materialize } from './snapshots.mjs';
 import { dataForApp } from './migrate-data.mjs';
 
 const LAYER_KEYS = DATA_LAYERS.map(layer => layer.key);
+const OPTIONAL_KEYS = DATA_LAYERS.filter(layer => layer.optional).map(layer => layer.key);
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const SHIP = [
@@ -38,7 +39,7 @@ export const CACHE_PREFIX = 'pedway';
 
 /** Writes one snapshot into out/data, laid out as in the repository, migrating it if this app needs that. */
 export async function stageData(target, { data = null, dataDir = DATA_DIR, migrations, accepts = DATA_SCHEMA.accepts, prepared = null } = {}) {
-  const ready = prepared ?? await dataForApp(dataDir, data ?? await currentId(dataDir), { accepts, layers: LAYER_KEYS, migrations });
+  const ready = prepared ?? await dataForApp(dataDir, data ?? await currentId(dataDir), { accepts, layers: LAYER_KEYS, optional: OPTIONAL_KEYS, migrations });
   return materialize(path.join(target, 'data'), ready.manifest, ready.texts, { schema: ready.schema, migratedFrom: ready.migratedFrom });
 }
 // `accepts` and `migrations` default to this app's own; tests pass others to try future schemas.
@@ -46,7 +47,7 @@ export async function stage(out, { data = null, dataDir = DATA_DIR, migrations, 
   const target = path.resolve(root, out);
   if (target === root || !target.startsWith(root + path.sep)) throw new Error('Stage into a subfolder of the repository.');
   // Check the data before touching the output folder, so a bad --data leaves it as it was.
-  const prepared = await dataForApp(dataDir, data ?? await currentId(dataDir), { accepts, layers: LAYER_KEYS, migrations });
+  const prepared = await dataForApp(dataDir, data ?? await currentId(dataDir), { accepts, layers: LAYER_KEYS, optional: OPTIONAL_KEYS, migrations });
   await fs.rm(target, { recursive: true, force: true });
   const skip = new Set(SKIP.map(entry => path.join(root, entry)));
   for (const entry of SHIP) {

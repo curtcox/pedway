@@ -166,7 +166,7 @@ test('data loads from the current snapshot, and a file that fails its hash is le
   await expect(page.locator('#app-status')).toContainText('could not be loaded');
   const snapshot = await page.evaluate(() => pedway.data.snapshot);
   expect(snapshot.id).toMatch(/^\d{4}-\d{2}-\d{2}/);
-  expect(Object.keys(snapshot.files)).toEqual(['pedway', 'access', 'cta', 'metra', 'poi']);
+  expect(Object.keys(snapshot.files)).toEqual(expect.arrayContaining(['pedway', 'access', 'cta', 'metra', 'poi']));
 });
 
 test('the About dialog names the data snapshot', async ({ page }) => {

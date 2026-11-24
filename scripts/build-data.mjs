@@ -4,6 +4,8 @@
 //   node scripts/build-data.mjs            # adds data/snapshots/<today>.json and its store files
 //   node scripts/build-data.mjs --cache d  # also keeps raw Overpass replies in d/
 //   node scripts/build-data.mjs --only poi # rebuild the places; other files come from the current snapshot
+//   node scripts/build-data.mjs --only base  # rebuild the base map and intersections (docs/map-layers.md)
+//   --only takes a comma-separated list of poi and base.
 // Nothing is written when OpenStreetMap's answer matches the current snapshot.
 // The browser never calls Overpass; it only loads the committed files.
 import fs from 'node:fs/promises';
@@ -12,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { CHICAGO_BOUNDS } from '../src/map-defaults.js';
 import { DATA_DIR, currentId, readSnapshot, writeSnapshot, geojsonText } from './snapshots.mjs';
+import { BASE_QUERIES, buildBase } from './base-map.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const ATTRIBUTION = '© OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright)';
@@ -277,11 +280,14 @@ function builderCommit() {
   try { return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(); } catch { return undefined; }
 }
 
+const GROUPS = ['poi', 'base'];
+
 async function main() {
   const built = {};
   let vertices, kept = {};
-  if (only && only !== 'poi') throw new Error('--only takes poi, or leave it out to rebuild every file.');
-  if (only === 'poi') {
+  const groups = only ? only.split(',') : GROUPS;
+  if (!groups.length || groups.some(group => !GROUPS.includes(group))) throw new Error(`--only takes ${GROUPS.join(' and/or ')}, or leave it out to rebuild every file.`);
+  if (only) {
     ({ texts: kept } = await readSnapshot(DATA_DIR, await currentId()));
     vertices = JSON.parse(kept.pedway).features.flatMap(f => f.geometry.coordinates.map(([lon, lat]) => [lat, lon]));
   } else {
@@ -292,15 +298,22 @@ async function main() {
     built.cta = buildStations('cta', (await overpass('cta', stationQuery('CTA'))).elements, vertices, ctaLine);
     built.metra = buildStations('metra', (await overpass('metra', stationQuery('Metra'))).elements, vertices, metraLine);
   }
-  built.poi = buildPoi((await overpass('poi', POI_QUERY)).elements, vertices);
+  if (groups.includes('poi')) built.poi = buildPoi((await overpass('poi', POI_QUERY)).elements, vertices);
+  if (groups.includes('base')) {
+    const raw = {};
+    for (const [name, query] of Object.entries(BASE_QUERIES)) raw[name] = await overpass(name, query);
+    Object.assign(built, buildBase(raw, vertices.map(([lat, lon]) => [lon, lat])));
+  }
   const texts = { ...kept, ...Object.fromEntries(Object.entries(built).map(([key, data]) => [key, geojsonText(data)])) };
   for (const [key, data] of Object.entries(built)) console.log(`${key}: ${data.features.length} features, ${(texts[key].length / 1024).toFixed(0)} KB`);
   if (built.pedway) {
     const km = built.pedway.features.reduce((sum, f) => sum + lengthOf(f.geometry.coordinates.map(([lon, lat]) => [lat, lon])), 0) / 1000;
     console.log(`Pedway length: ${km.toFixed(1)} km`);
   }
-  const counts = Object.groupBy(built.poi.features, f => f.properties.category);
-  console.log('Places: ' + Object.entries(counts).map(([category, list]) => `${category} ${list.length}`).join(', '));
+  if (built.poi) {
+    const counts = Object.groupBy(built.poi.features, f => f.properties.category);
+    console.log('Places: ' + Object.entries(counts).map(([category, list]) => `${category} ${list.length}`).join(', '));
+  }
   const manifest = await writeSnapshot(DATA_DIR, texts, { osmBase, attribution: ATTRIBUTION,
     builder: { commit: builderCommit(), script: 'scripts/build-data.mjs' + (only ? ` --only ${only}` : '') } });
   console.log(manifest ? `Wrote snapshot ${manifest.id}; data/current.json now names it.` : 'OpenStreetMap data is unchanged; no new snapshot.');

@@ -29,7 +29,8 @@ const exists = file => fs.access(file).then(() => true, () => false);
 export async function appKind(appDir) {
   if (await exists(path.join(appDir, 'src/data-snapshot.js'))) {
     const { DATA_SCHEMA, DATA_LAYERS } = await import(pathToFileURL(path.join(appDir, 'src/data-layers.js')).href);
-    return { kind: 'snapshot', accepts: [...DATA_SCHEMA.accepts], layers: DATA_LAYERS.map(layer => layer.key), files: DATA_LAYERS };
+    return { kind: 'snapshot', accepts: [...DATA_SCHEMA.accepts], layers: DATA_LAYERS.map(layer => layer.key),
+      optional: DATA_LAYERS.filter(layer => layer.optional).map(layer => layer.key), files: DATA_LAYERS };
   }
   if (await exists(path.join(appDir, 'src/data-layers.js'))) {
     // Flat-file apps came before schema versions; their data matches schema 1.
@@ -66,7 +67,7 @@ export async function buildAt({ app: ref, data = null, out, dataDir = DATA_DIR, 
     log(`App ${ref} (${commit.slice(0, 12)}) reads ${app.kind === 'none' ? 'no data' : `${app.kind} data, schema ${app.accepts.join(' or ')}`}.`);
     let ready = null;
     if (app.kind !== 'none') {
-      ready = await dataForApp(dataDir, id, { accepts: app.accepts, layers: app.layers, migrations });
+      ready = await dataForApp(dataDir, id, { accepts: app.accepts, layers: app.layers, optional: app.optional ?? [], migrations });
       await writeData(appDir, app, ready);
       log(`Data snapshot ${id}, schema ${ready.manifest.schema}${ready.steps.length ? `, migrated to schema ${ready.schema}` : ''}.`);
     }

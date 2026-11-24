@@ -15,11 +15,29 @@ const MAX_BYTES = 300 * 1024;
 const ID = /^[nwr]\d+$/;
 
 function inBounds([lon, lat]) { return Number.isFinite(lat) && Number.isFinite(lon) && lat >= S && lat <= N && lon >= W && lon <= E; }
+const isPoint = p => Array.isArray(p) && p.length === 2 && typeof p[0] === 'number';
+// Coordinates nest one level per geometry type: a point, a line of points, a polygon of rings, …
+const DEPTH = { Point: 0, LineString: 1, MultiLineString: 2, Polygon: 2, MultiPolygon: 3 };
+/** Why a geometry's coordinates are malformed or outside Chicago, or null. */
+function checkShape({ type, coordinates }) {
+  const points = [];
+  const walk = (value, depth) => {
+    if (depth === 0) { if (!isPoint(value)) return false; points.push(value); return true; }
+    return Array.isArray(value) && value.length > 0 && value.every(child => walk(child, depth - 1));
+  };
+  if (!walk(coordinates, DEPTH[type])) return 'bad coordinates';
+  const lines = type === 'LineString' ? [coordinates] : type === 'MultiLineString' ? coordinates : [];
+  const rings = type === 'Polygon' ? coordinates : type === 'MultiPolygon' ? coordinates.flat() : [];
+  if (lines.some(line => line.length < 2)) return 'a line needs two points';
+  if (rings.some(ring => ring.length < 4 || ring[0][0] !== ring.at(-1)[0] || ring[0][1] !== ring.at(-1)[1])) return 'a ring must be closed, with four points or more';
+  return points.every(inBounds) ? null : 'coordinates outside Chicago';
+}
 
 /** Checks one data file's text against its layer's rules (the current schema). */
 export function checkLayerText(layer, text, name = layer.file) {
   const errors = [];
-  if (Buffer.byteLength(text) > MAX_BYTES) errors.push(`${name}: larger than ${MAX_BYTES / 1024} KB`);
+  const maxBytes = layer.maxBytes ?? MAX_BYTES;
+  if (Buffer.byteLength(text) > maxBytes) errors.push(`${name}: larger than ${maxBytes / 1024} KB`);
   let data;
   try { data = JSON.parse(text); } catch (error) { errors.push(`${name}: not JSON (${error.message})`); return errors; }
   if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) { errors.push(`${name}: not a FeatureCollection`); return errors; }
@@ -29,14 +47,14 @@ export function checkLayerText(layer, text, name = layer.file) {
   for (const [i, feature] of data.features.entries()) {
     const where = `${name} feature ${feature?.id ?? i}`;
     if (feature?.type !== 'Feature') { errors.push(`${where}: not a Feature`); continue; }
-    if (!ID.test(feature.id ?? '')) errors.push(`${where}: id must look like n123, w123 or r123`);
+    if (!(layer.id ?? ID).test(feature.id ?? '')) errors.push(`${where}: id must look like ${layer.id ? layer.id.source : 'n123, w123 or r123'}`);
     if (ids.has(feature.id)) errors.push(`${where}: duplicate id`);
     ids.add(feature.id);
     const { geometry, properties } = feature;
-    if (geometry?.type !== layer.geometry) { errors.push(`${where}: geometry must be ${layer.geometry}`); continue; }
-    const points = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates;
-    if (!Array.isArray(points) || (geometry.type === 'LineString' && points.length < 2)) errors.push(`${where}: bad coordinates`);
-    else if (!points.every(p => Array.isArray(p) && p.length === 2 && inBounds(p))) errors.push(`${where}: coordinates outside Chicago`);
+    const types = [layer.geometry].flat();
+    if (!types.includes(geometry?.type)) { errors.push(`${where}: geometry must be ${types.join(' or ')}`); continue; }
+    const shapeError = checkShape(geometry);
+    if (shapeError) errors.push(`${where}: ${shapeError}`);
     if (!properties || typeof properties !== 'object') { errors.push(`${where}: no properties`); continue; }
     for (const [key, check] of Object.entries(layer.properties)) {
       const value = properties[key];
@@ -45,6 +63,7 @@ export function checkLayerText(layer, text, name = layer.file) {
       if (value !== undefined && check.type === 'string' && (typeof value !== 'string' || value.length > 200)) errors.push(`${where}: ${key} must be short text`);
       if (value !== undefined && check.type === 'list' && (!Array.isArray(value) || !value.every(v => typeof v === 'string'))) errors.push(`${where}: ${key} must be a list of text`);
       if (value !== undefined && check.type === 'boolean' && typeof value !== 'boolean') errors.push(`${where}: ${key} must be true or false`);
+      if (value !== undefined && check.type === 'number' && !Number.isFinite(value)) errors.push(`${where}: ${key} must be a number`);
     }
     for (const key of Object.keys(properties)) if (!(key in layer.properties)) errors.push(`${where}: unexpected property ${key}`);
   }

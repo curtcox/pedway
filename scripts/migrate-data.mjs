@@ -44,21 +44,23 @@ export function mapProperties(text, change) {
 /**
  * A snapshot's texts, readied for an app that reads `accepts` schemas and the
  * given layers: checked against their hashes, migrated if needed, and trimmed to
- * those layers. Throws, saying why, when the app cannot use the snapshot.
+ * those layers. Layers listed in `optional` may be missing. Throws, saying why,
+ * when the app cannot use the snapshot.
  */
-export async function dataForApp(dataDir, id, { accepts, layers, migrations = MIGRATIONS }) {
+export async function dataForApp(dataDir, id, { accepts, layers, optional = [], migrations = MIGRATIONS }) {
   const { manifest, texts } = await readSnapshot(dataDir, id);
-  const missing = layers.filter(layer => typeof texts[layer] !== 'string');
+  const required = layers.filter(layer => !optional.includes(layer));
+  const missing = required.filter(layer => typeof texts[layer] !== 'string');
   if (missing.length && accepts.includes(manifest.schema)) throw new Error(`Data snapshot ${id} has no ${missing.join(', ')} data.`);
   if (!accepts.includes(manifest.schema) && !migrationPath(manifest.schema, accepts, migrations)) {
     throw new Error(`Data snapshot ${id} uses data schema ${manifest.schema}; this app reads ${accepts.join(' or ')}, and there is no migration${manifest.schema > Math.max(...accepts) ? ' (the data is newer than the app)' : ''}.`);
   }
   const migrated = migrate(texts, manifest.schema, accepts, migrations);
-  const absent = layers.filter(layer => typeof migrated.texts[layer] !== 'string');
+  const absent = required.filter(layer => typeof migrated.texts[layer] !== 'string');
   if (absent.length) throw new Error(`Data snapshot ${id} has no ${absent.join(', ')} data, even after migrating.`);
   return {
     manifest, schema: migrated.schema, steps: migrated.steps,
-    texts: Object.fromEntries(layers.map(layer => [layer, migrated.texts[layer]])),
+    texts: Object.fromEntries(layers.filter(layer => typeof migrated.texts[layer] === 'string').map(layer => [layer, migrated.texts[layer]])),
     migratedFrom: migrated.steps.length ? manifest.schema : undefined,
   };
 }
