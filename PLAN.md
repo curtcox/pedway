@@ -303,6 +303,50 @@ the project.
   HTTPS" is covered by Pixel 7 / iPhone 13 emulation; a check on a real device
   is still to do.
 
+### M6 notes (2026-11-24)
+
+* **Library:** Fragment Kit's IndexedDB library (`openLibrary` and
+  `createLibraryPanel`). **Save** and **Library** are in the toolbar; on phones
+  they move into **More** so the toolbar stays on one row. **Save as…** is always
+  in More. Library names and descriptions stay in the browser and never enter
+  links. Library export and import (`fragment-kit-library` files) come from the
+  kit. HashBin publishing stays hidden until there is a client ID. If IndexedDB
+  is missing, as in some private windows, the status bar says so and the rest of
+  the app still works.
+* **Files** (`src/files.js`, `src/file-actions.js`): **Export…** writes the map
+  file (the kit's `.json` envelope) or GeoJSON. In GeoJSON, pins are points with
+  `name`, `description`, `marker-color`, `icon` and `geohash`, and a `pedway`
+  foreign member holds the title, view and layers, so the app can rebuild the
+  whole map from it. **Open file…** and drag-and-drop read either format. GeoJSON
+  from other tools keeps only points inside Chicago, up to the pin limit, and
+  says what it left out. When the current map has pins, it asks whether to add
+  them or open a new map. Opening a library export as a file goes to Library
+  import. Opening a file or a library entry adds a history entry, so Back
+  returns to the previous map. Drafts were not added: the link already holds the
+  current map, and the library holds saved ones.
+* **Offline:** `service-worker.js` loads the kit's verified-cache worker.
+  `scripts/stage.mjs` writes the SHA-256 manifest (`offline-assets.js`) when it
+  stages the site. The manifest is not committed, so the dev server at the repo
+  root has no offline copy and shows "Offline copy unavailable". Use
+  `npm run serve:site` to try the real thing. Staging now leaves out kit files
+  the site never loads: `src/ai`, the second jsQR build, HashBin SDK 0.6 and
+  Leaflet's source map. The staged site is 1.4 MB. A new deployment waits until
+  the viewer taps **Reload** in the status bar. **Repair offline copy** is in
+  More.
+* **Tiles:** the map requests tiles with CORS. The worker keeps tiles the viewer
+  has already seen (at most 3,000, about 50 MB) and reuses them for a week. It
+  never downloads tiles ahead of time, because OpenStreetMap's tile policy
+  forbids bulk downloads. Areas you have not viewed are blank offline. Address
+  search through Nominatim still needs a connection; every other search works
+  offline.
+* **Tests:** Playwright now blocks service workers by default, because
+  `page.route` cannot see worker requests in Firefox or WebKit.
+  `tests/browser/offline.spec.js` stages the site, serves it under `/pedway/`,
+  loads it once, goes offline and checks the map, data and seen tiles. It also
+  checks that a tampered cache entry is never served. Fragment Kit's contract
+  suites are still not used: they assume a text editor and drafts. Firefox runs
+  only in CI, because it would not launch in the local sandbox.
+
 ## 8. Still open
 
 1. HashBin publishing needs a registered client ID. Until there is one, long
