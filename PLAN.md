@@ -357,7 +357,8 @@ the project.
   and galleries* and *Parks and plazas*. Places come from Overpass, must be within
   400 m of a Pedway vertex, and need a name unless they are restrooms. A place
   within 30 m of a corridor (90 m when OSM puts it below street level) is marked
-  "On or beside the Pedway". COUNTS
+  "On or beside the Pedway". The first build has 796 places (176 KB): 645 food,
+  56 stores, 53 parks, 24 museums and 18 restrooms; 100 are on the Pedway.
 * Each category is its own layer under **Places** in the Layers panel, keyed as
   the document already had them (`food`, `restroom`, `store`, `museum`, `park`).
   Places appear from zoom 15 in; further out the panel says "Zoom in to see
