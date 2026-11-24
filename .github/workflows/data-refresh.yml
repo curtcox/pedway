@@ -38,7 +38,13 @@ jobs:
           cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git switch -C data-refresh
+          # Branch from the newest main, not the commit this run started on: if main moved
+          # (say, a workflow edit), an older base would look like a workflow change, which
+          # the workflow token may not push.
+          git stash push --quiet -- data
+          git fetch --quiet origin main
+          git switch -C data-refresh FETCH_HEAD
+          git checkout stash@{0} -- data
           git add data
           git commit -m "Refresh data from OpenStreetMap ($(date -u +%Y-%m-%d))"
           git push --force origin data-refresh
