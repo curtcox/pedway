@@ -30,9 +30,3 @@ export const DATA_LAYERS = Object.freeze([
     properties: { category: { required: true, values: POI_CATEGORIES.map(category => category.key) }, kind: { required: true, ...text },
       name: text, hours: text, level: text, wheelchair: yesNo, pedway: { type: 'boolean' }, osm: { required: true, ...text } } },
 ]);
-
-// The layers a map shows, in the panel's order: the data files, with poi split by category.
-export const MAP_LAYERS = Object.freeze([
-  ...DATA_LAYERS.filter(layer => layer.key !== 'poi').map(layer => ({ key: layer.key, title: layer.title, file: layer.key })),
-  ...POI_CATEGORIES.map(category => ({ key: category.key, title: category.title, file: 'poi', category: category.key })),
-]);

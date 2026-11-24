@@ -16,7 +16,8 @@ const fail = message => { throw new Error(message); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;
 function only(value, keys, what) {
-  for (const key of Object.keys(value)) if (!keys.includes(key)) fail(`Unknown ${what} field: ${key}.`);
+  // A field this version does not know usually means a map made with a newer version.
+  for (const key of Object.keys(value)) if (!keys.includes(key)) fail(`Unknown ${what} field: ${key}. If this map was made with a newer version of Pedway Tools, reload the page to update.`);
 }
 export function inChicago(lat, lon) {
   const [[south, west], [north, east]] = CHICAGO_BOUNDS;

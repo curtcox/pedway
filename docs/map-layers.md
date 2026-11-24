@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0 done** (2026-11-24); L1–L7 proposed. See [L0 results](#l0-results).
+Status: **L0–L1 done** (2026-11-24); L2–L7 proposed. See [L0 results](#l0-results) and [As built](#as-built).
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -223,7 +223,7 @@ rather than drawing more.
 | # | Deliverable | Done when |
 | --- | --- | --- |
 | **L0** ✓ | Measuring spike (`scripts/base-survey.mjs`, `scripts/base-survey-draw.mjs`): fetch the six base layers and `intersections` for the proposed box, simplify, and report counts, raw and gzip sizes, and canvas draw time under Pixel 7 emulation with 4× CPU throttling | A table in this file fixes the box, the simplification, any zoom split, and whether the base is precached. **Decision gate** for L4–L5. |
-| **L1** | Layer registry and panes, with no visible change: the tile layer and data layers move into `src/map-layers.js`; lazy loading; the Layers panel is built from the registry, in sections; "made with a newer version" error | Every existing browser test passes; a unit test checks registry order and keys against `doc.js`. |
+| **L1** ✓ | Layer registry and panes, with no visible change: the tile layer and data layers move into `src/map-layers.js`; lazy loading; the Layers panel is built from the registry, in sections; "made with a newer version" error | Every existing browser test passes; a unit test checks registry order and keys against `doc.js`. |
 | **L2** | Lat/long, geohash and USNG overlays, the readout, and `map.overlays` in links | Overlays round-trip in links in all three browsers; unit tests check line positions against known values (for example, a USNG 1 km line against PROJ); axe passes with the readout open. |
 | **L3** | `intersections` data set, grid lines, corner labels, nearest corner in the readout; search and `describeGrid` prefer exact corners | Corner labels match OSM at test corners; the readout names the right corner within 10 m in the Loop. |
 | **L4** | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
@@ -355,3 +355,23 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
 | Low-zoom copy | Not in L4. |
 | Offline | Precache the base and downtown intersections. Citywide intersections are loaded on use. |
 | `pedway` buildings | A Pedway vertex inside or within 8 m: 151 buildings. Spot-check in L4 against the City's Pedway map. |
+
+## As built
+
+### L1 (2026-11-24)
+
+* `src/map-layers.js` holds `LAYER_GROUPS` (the panel's sections), `PANES`
+  (stacking order) and `MAP_LAYERS`, each with `group`, `source`, `default`,
+  `minZoom` and `streetHides`. `MAP_LAYERS` moved here from `data-layers.js`,
+  which keeps only the data files' schemas. A unit test holds the document's
+  `LAYERS` equal to the registry's `LAYER_DEFAULTS`.
+* `fetchSnapshot` now returns `file(key)`, which fetches and hash-checks one
+  layer's file the first time it is asked for. Data layers marked `lazy` load
+  the first time they are shown; today's files stay eager because search, the
+  nearest-entrance button and the About panel need them. Data layers marked
+  `optional` may be missing from a snapshot, so older snapshots stay readable
+  once the base layers exist.
+* The Layers panel is built from the registry, one heading per group
+  (`#layers-transit`, `#layers-places`). The raster tile layer is unchanged until L5.
+* An unknown field in a link or file now adds "If this map was made with a newer
+  version of Pedway Tools, reload the page to update."

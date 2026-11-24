@@ -12,7 +12,8 @@ export const CURRENT_FORMAT = 'pedway-data-current';
 export const SNAPSHOT_FORMAT = 'pedway-data-snapshot';
 export const SNAPSHOT_ID = /^\d{4}-\d{2}-\d{2}(-\d{1,3})?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const LAYER_KEYS = DATA_LAYERS.map(layer => layer.key);
+// Optional layers (the self-hosted base map) may be missing from older snapshots.
+const REQUIRED_KEYS = DATA_LAYERS.filter(layer => !layer.optional).map(layer => layer.key);
 
 const fail = message => { throw new Error(message); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -60,13 +61,14 @@ export function validateManifest(manifest, id = manifest?.id) {
 /** Whether this version of the app can read a snapshot, and what it is missing if not. */
 export function acceptsSchema(manifest) {
   if (!DATA_SCHEMA.accepts.includes(manifest.schema)) return `uses data schema ${manifest.schema}; this app reads ${DATA_SCHEMA.accepts.join(' or ')}`;
-  const missing = LAYER_KEYS.filter(key => !manifest.files[key]);
+  const missing = REQUIRED_KEYS.filter(key => !manifest.files[key]);
   return missing.length ? `has no ${missing.join(', ')} data` : null;
 }
 
 /**
- * Loads the current (or a named) snapshot over HTTP. Resolves with the manifest
- * and one promise per layer, so a single bad file leaves the others usable.
+ * Loads the current (or a named) snapshot's manifest over HTTP. Resolves with the
+ * manifest and file(key), which fetches one layer's file the first time it is asked
+ * for, so a single bad file leaves the others usable and unused layers cost nothing.
  * Each file must match its SHA-256 when the browser can hash (secure contexts).
  */
 export async function fetchSnapshot(baseUrl, { id = null, fetch = globalThis.fetch } = {}) {
@@ -81,13 +83,19 @@ export async function fetchSnapshot(baseUrl, { id = null, fetch = globalThis.fet
   const problem = acceptsSchema(manifest);
   if (problem) throw new Error(`Data snapshot ${snapshot} ${problem}.`);
   const canHash = Boolean(globalThis.crypto?.subtle);
-  const files = Object.fromEntries(LAYER_KEYS.map(key => [key, (async () => {
+  const loading = new Map();
+  const load = async key => {
+    if (!manifest.files[key]) throw new Error(`Data snapshot ${snapshot} has no ${key} data.`);
     const { path, sha256 } = manifest.files[key];
     const response = await fetch(new URL(path, baseUrl));
     if (!response.ok) throw new Error(`${path}: ${response.status}`);
     const bytes = await response.arrayBuffer();
     if (canHash && await sha256Hex(bytes) !== sha256) throw new Error(`${key} data does not match its snapshot.`);
     return JSON.parse(new TextDecoder().decode(bytes));
-  })()]));
-  return { manifest, files };
+  };
+  const file = key => {
+    if (!loading.has(key)) loading.set(key, load(key));
+    return loading.get(key);
+  };
+  return { manifest, file, has: key => Boolean(manifest.files[key]) };
 }

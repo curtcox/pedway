@@ -180,3 +180,12 @@ test('line chips and place colours keep text and markers readable', async () => 
   // WCAG 1.4.11: place markers sit on light map tiles and need 3:1 against white.
   for (const { key, color } of POI_CATEGORIES) assert.ok(contrast(color, '#ffffff') >= 3, key);
 });
+
+test('the layer registry draws every place category and every required data file, each in a known group', async () => {
+  const { MAP_LAYERS, LAYER_GROUPS } = await import('../src/map-layers.js');
+  const groups = new Set(LAYER_GROUPS.map(group => group.key));
+  for (const layer of MAP_LAYERS) assert.ok(groups.has(layer.group), `${layer.key} is in a known group`);
+  const files = new Set(MAP_LAYERS.filter(layer => layer.source.kind === 'snapshot').map(layer => layer.source.file));
+  for (const data of DATA_LAYERS.filter(layer => !layer.optional && layer.key !== 'intersections')) assert.ok(files.has(data.key), `${data.key} is drawn`);
+  assert.equal(new Set(MAP_LAYERS.map(layer => layer.key)).size, MAP_LAYERS.length, 'keys are unique');
+});

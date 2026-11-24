@@ -1,6 +1,7 @@
 // Draws the committed GeoJSON data and the panel that turns each layer on and off.
 import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
-import { DATA_LAYERS, MAP_LAYERS, POI_CATEGORIES } from './data-layers.js';
+import { DATA_LAYERS, POI_CATEGORIES } from './data-layers.js';
+import { MAP_LAYERS, LAYER_GROUPS, PANES, POI_MIN_ZOOM } from './map-layers.js';
 import { LEVELS } from './doc.js';
 import { externalLinks } from './external.js';
 import { fetchSnapshot } from './data-snapshot.js';
@@ -15,8 +16,7 @@ export const POI_KINDS = Object.freeze({ restaurant: 'Restaurant', cafe: 'Café'
   ice_cream: 'Ice cream', bakery: 'Bakery', deli: 'Deli', toilets: 'Restroom', pharmacy: 'Pharmacy', supermarket: 'Grocery store',
   convenience: 'Convenience store', department_store: 'Department store', mall: 'Shopping centre', greengrocer: 'Produce',
   museum: 'Museum', gallery: 'Gallery', arts_centre: 'Arts centre', park: 'Park', garden: 'Garden', plaza: 'Plaza' });
-// Places crowd the map when zoomed out, so they appear from this zoom in.
-export const POI_MIN_ZOOM = 15;
+export { POI_MIN_ZOOM };
 const WHEELCHAIR = { yes: 'Step-free access', limited: 'Limited step-free access', no: 'No step-free access' };
 
 function osmLink(id) {
@@ -69,73 +69,87 @@ const STYLES = {
       p.pedway && 'On or beside the Pedway', p.level && `Level ${p.level}`, p.hours && `Hours: ${p.hours}`, WHEELCHAIR[p.wheelchair],
       p.category === 'restroom' && 'Restrooms in buildings keep the building’s hours and may be for customers only.'], p.osm, geometry.coordinates) },
 };
-const POI_KEYS = new Set(POI_CATEGORIES.map(category => category.key));
 
 export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = new URL('../data/', import.meta.url), snapshotId = null }) {
+  for (const { name, zIndex } of PANES) if (!map.getPane(name)) map.createPane(name).style.zIndex = zIndex;
   const groups = new Map(MAP_LAYERS.map(layer => [layer.key, L.layerGroup()]));
   const features = new Map(DATA_LAYERS.map(layer => [layer.key, []]));
+  const built = new Map();   // map layer key → promise that its shapes are in its group
   let state = { layers: {}, level: 'both', gps: false };
   // The data comes from the snapshot data/current.json names. Each file loads and is
   // checked on its own, so one that fails leaves the others on the map.
   let manifest = null;
-  const loaded = fetchSnapshot(baseUrl, { id: snapshotId }).then(snapshot => {
-    manifest = snapshot.manifest;
-    return Promise.allSettled(DATA_LAYERS.map(async layer => {
-      const data = await snapshot.files[layer.key];
-      features.set(layer.key, data.features);
-      const style = STYLES[layer.key];
-      // Places go into one group per category; every other file is one group.
-      for (const target of MAP_LAYERS.filter(entry => entry.file === layer.key)) {
-        L.geoJSON(data, {
-          filter: feature => !target.category || feature.properties.category === target.category,
-          style: style.style,
-          pointToLayer: (feature, at) => L.circleMarker(at, { ...style.point(feature), bubblingMouseEvents: false }),
-          onEachFeature: (feature, shape) => {
-            shape.bindPopup(() => style.popup(feature), { maxWidth: 260 });
-            if (feature.properties.name) shape.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -6] });
-          },
-        }).addTo(groups.get(target.key));
-      }
-      return [layer.key, data.features.length];
-    }));
-  }).then(results => {
+  const snapshot = fetchSnapshot(baseUrl, { id: snapshotId }).then(value => { manifest = value.manifest; return value; });
+
+  function build(layer) {
+    if (built.has(layer.key)) return built.get(layer.key);
+    const { file, category } = layer.source;
+    const style = STYLES[file];
+    const promise = snapshot.then(value => value.file(file)).then(data => {
+      features.set(file, data.features);
+      L.geoJSON(data, {
+        filter: feature => !category || feature.properties.category === category,
+        style: style.style,
+        pointToLayer: (feature, at) => L.circleMarker(at, { ...style.point(feature), bubblingMouseEvents: false }),
+        onEachFeature: (feature, shape) => {
+          shape.bindPopup(() => style.popup(feature), { maxWidth: 260 });
+          if (feature.properties.name) shape.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -6] });
+        },
+      }).addTo(groups.get(layer.key));
+      return data.features.length;
+    });
+    built.set(layer.key, promise);
+    return promise;
+  }
+  // Search, nearest-entrance and the counts the tests read need every data file now, whether
+  // or not its layer is shown; layers with lazy: true load the first time they are shown.
+  const eager = DATA_LAYERS.filter(layer => !layer.lazy);
+  const loaded = snapshot.then(() => Promise.allSettled(eager.map(async data => {
+    await Promise.all(MAP_LAYERS.filter(layer => layer.source.file === data.key).map(build));
+    return [data.key, features.get(data.key).length];
+  }))).then(results => {
     const failed = results.filter(result => result.status === 'rejected');
     if (failed.length) onError?.(failed[0].reason);
     return Object.fromEntries(results.filter(result => result.status === 'fulfilled').map(result => result.value));
   }, error => { onError?.(error); return {}; });
 
-  const visible = key => state.layers[key] && !(state.level === 'street' && (key === 'pedway' || key === 'access'))
-    && !(POI_KEYS.has(key) && map.getZoom() < POI_MIN_ZOOM);
+  const visible = layer => state.layers[layer.key] && !(state.level === 'street' && layer.streetHides) && !(layer.minZoom && map.getZoom() < layer.minZoom);
   function show(next) {
     state = { layers: { ...next.layers }, level: next.level, gps: Boolean(next.gps) };
-    for (const [key, group] of groups) {
-      if (visible(key)) group.addTo(map); else group.remove();
+    for (const layer of MAP_LAYERS) {
+      const group = groups.get(layer.key);
+      if (!visible(layer)) { group.remove(); continue; }
+      group.addTo(map);
+      if (!built.has(layer.key)) build(layer).catch(error => onError?.(error));
     }
     tiles?.setOpacity(state.level === 'pedway' ? 0.4 : 1);
     panel.sync();
   }
   map.on('zoomend', () => show(state));
 
-  // The panel: a Leaflet control with a button that opens a list of checkboxes.
+  // The panel: a Leaflet control with a button that opens a list of checkboxes, one section per group.
   const panel = (() => {
     const Control = L.Control.extend({ options: { position: 'topright' }, onAdd() {
       const box = element('div', null, { className: 'leaflet-bar layers-control' });
       const toggle = element('button', 'Layers', { type: 'button', id: 'layers-open', 'aria-expanded': 'false', 'aria-controls': 'layers-panel' });
       const sheet = element('div', null, { id: 'layers-panel', className: 'layers-panel', hidden: '' });
       const boxes = new Map();
-      const heading = element('h3', 'Show on map');
-      sheet.append(heading);
-      const placesNote = element('p', `Zoom in to see places.`, { className: 'layers-note', id: 'layers-zoom-note' });
-      for (const layer of MAP_LAYERS) {
-        if (layer.file === 'poi' && !sheet.querySelector('#layers-places')) sheet.append(element('h3', 'Places', { id: 'layers-places' }), placesNote);
-        const input = element('input', null, { type: 'checkbox', id: `layer-${layer.key}`, value: layer.key });
-        const swatch = element('span', null, { className: `layer-swatch swatch-${layer.file}`, 'aria-hidden': 'true' });
-        if (layer.category) swatch.style.background = POI_COLORS[layer.category];
-        const label = element('label', null, { className: 'layer-option', for: `layer-${layer.key}` });
-        label.append(input, swatch, element('span', layer.title));
-        input.onchange = () => onChange({ ...state, layers: { ...state.layers, [layer.key]: input.checked } });
-        boxes.set(layer.key, input);
-        sheet.append(label);
+      const placesNote = element('p', 'Zoom in to see places.', { className: 'layers-note', id: 'layers-zoom-note' });
+      for (const group of LAYER_GROUPS) {
+        const members = MAP_LAYERS.filter(layer => layer.group === group.key);
+        if (!members.length) continue;
+        sheet.append(element('h3', group.title, { id: `layers-${group.key}` }));
+        if (group.key === 'places') sheet.append(placesNote);
+        for (const layer of members) {
+          const input = element('input', null, { type: 'checkbox', id: `layer-${layer.key}`, value: layer.key });
+          const swatch = element('span', null, { className: `layer-swatch swatch-${layer.source.file ?? layer.key}`, 'aria-hidden': 'true' });
+          if (layer.color) swatch.style.background = layer.color;
+          const label = element('label', null, { className: 'layer-option', for: `layer-${layer.key}` });
+          label.append(input, swatch, element('span', layer.title));
+          input.onchange = () => onChange({ ...state, layers: { ...state.layers, [layer.key]: input.checked } });
+          boxes.set(layer.key, input);
+          sheet.append(label);
+        }
       }
       const level = element('select', null, { id: 'layer-level', 'aria-label': 'View' });
       for (const value of LEVELS) level.append(element('option', LEVEL_NAMES[value], { value }));
@@ -159,7 +173,7 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
         for (const [key, input] of boxes) input.checked = Boolean(state.layers[key]);
         level.value = state.level;
         offer.checked = state.gps;
-        for (const key of ['pedway', 'access']) boxes.get(key).disabled = state.level === 'street';
+        for (const layer of MAP_LAYERS) if (layer.streetHides) boxes.get(layer.key).disabled = state.level === 'street';
         placesNote.hidden = map.getZoom() >= POI_MIN_ZOOM;
       };
       return box;

@@ -85,3 +85,12 @@ test('example ids are unique and every example is valid', () => {
   assert.equal(new Set(examples.map(example => example.id)).size, examples.length);
   for (const example of examples) assert.doesNotThrow(() => type.normalize(example.document));
 });
+
+test('the document’s layers are exactly the map’s layers, with the same defaults', async () => {
+  const { LAYER_DEFAULTS } = await import('../src/map-layers.js');
+  assert.deepEqual(LAYERS, LAYER_DEFAULTS);
+});
+
+test('an unknown field says the map may come from a newer version', () => {
+  assert.throws(() => type.normalize({ src: '', map: { overlays: {} } }), /Unknown map field: overlays\. If this map was made with a newer version/);
+});
