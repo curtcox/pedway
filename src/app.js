@@ -247,6 +247,10 @@ async function navigate(href = location.href) {
   } catch (error) {
     // Keep the current map; never silently fall back to a default.
     if (revision === loadRevision) setStatus(error.message);
+  } finally {
+    // How many addresses this page has finished opening: tests wait for it after a hash-only navigation.
+    // (Every open counts: applying a map moves it, which bumps loadRevision.)
+    document.body.dataset.opens = String(Number(document.body.dataset.opens ?? 0) + 1);
   }
 }
 

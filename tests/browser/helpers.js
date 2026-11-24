@@ -7,8 +7,16 @@ export async function blankTiles(page) {
   await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }));
 }
 export async function open(page, href = './') {
+  // A link that changes only the fragment keeps the page, which is already ready: then wait
+  // until the app has opened one more address. A marker on the old page tells the two apart.
+  // Going to the address the page is already on opens nothing new, so there is nothing to wait for.
+  const before = await page.evaluate(href => {
+    window.__opening = true;
+    return { count: Number(document.body?.dataset.opens ?? 0), same: new URL(href, location.href).href === location.href };
+  }, href).catch(() => ({ count: 0, same: false }));
   await page.goto(href);
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  if (!before.same) await page.waitForFunction(count => !window.__opening || Number(document.body.dataset.opens ?? 0) > count, before.count);
 }
 export const snapshot = page => page.evaluate(() => pedway.snapshot());
 export const build = (page, doc) => page.evaluate(doc => pedway.urlState.build(doc).href, doc);
