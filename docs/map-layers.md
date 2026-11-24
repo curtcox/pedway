@@ -1,6 +1,6 @@
 # Map layers plan
 
-Status: **L0–L6 done** (2026-11-24); L7 (optional) proposed. See [L0 results](#l0-results) and [As built](#as-built).
+Status: **L0–L7 done** (2026-11-24). See [L0 results](#l0-results), [As built](#as-built) and [L7 results](#l7-results): no-go for a citywide PMTiles base for now; go, later, for the Pedway schematic as a separate view.
 It follows M7 in [PLAN.md](../PLAN.md) and builds on the snapshot store from [data-history.md](data-history.md).
 Phases are L0–L7; ★ marks the chosen options.
 
@@ -87,10 +87,10 @@ Every layer is described in one registry, `src/map-layers.js`, which replaces
 | Option | What it is | Offline | Extra dependency | Build tooling | Verdict |
 | --- | --- | --- | --- | --- | --- |
 | **A. GeoJSON on canvas** ★ | One GeoJSON file per base layer, clipped to downtown, drawn by Leaflet's canvas renderer | Fully, precached | none | the existing Overpass builder | **Chosen for downtown.** Same pipeline, store, checks and diffs as the data that exists. |
-| B. Self-hosted vector tiles | One PMTiles archive read with HTTP range requests, drawn with `protomaps-leaflet` | Awkward: the worker must cache range responses | protomaps-leaflet (~100 KB) | Planetiler (Java) or tippecanoe | **Kept for later** (L7) if the self-hosted area ever needs to cover the whole city. |
+| B. Self-hosted vector tiles | One PMTiles archive read with HTTP range requests, drawn with `protomaps-leaflet` | Awkward: the worker must cache range responses | protomaps-leaflet (~100 KB) | Planetiler (Java) or tippecanoe | **No-go for now** (L7): 19–59 MiB for the city, twice the draw time, and range requests do not fit the offline worker. See [L7 results](#l7-results). |
 | C. Self-rendered raster tiles | Our own PNG tiles rendered from OSM data | Yes, but large | none | a renderer (Mapnik or similar) | Rejected: heavy tooling, tens of MB per zoom range, no styling at runtime. |
 | D. MapLibre GL | WebGL vector map | Yes | ~800 KB | as B | Rejected (see Decisions). |
-| E. Pedway schematic | A non-geographic diagram of Pedway corridors and stations, like a transit map | Yes | none | a graph layout step | Interesting as a separate *view*, not a base layer. Listed under L7. |
+| E. Pedway schematic | A non-geographic diagram of Pedway corridors and stations, like a transit map | Yes | none | a graph layout step | A separate *view*, not a base layer. L7 prototype: [pedway-schematic.svg](pedway-schematic.svg); go, later (see [L7 results](#l7-results)). |
 
 ### Self-hosted area
 
@@ -149,7 +149,7 @@ layers an app knows).
 | **`intersections`** | Corner labels, the nearest-corner readout, and exact corners for search. PLAN.md §3 planned it; M3 used the grid model instead. | **Measured:** downtown, every named corner: 649 (392 major), 121 KiB raw. Citywide major × major: 3,759, 694 KiB raw, 96 KiB gzip: two files, the citywide one loaded on use. | L3 |
 | `pedway: true` on buildings | Highlights the buildings the Pedway connects: what most visitors actually want to know | a property, no new file | L4 |
 | CTA and Metra **line geometry** | Coloured 'L' and Metra lines, especially the elevated Loop | part of `rail` | L4 |
-| Pedway graph (optional) | Nodes and edges for routing hints and the schematic view | about 50 KB | L7 |
+| Pedway graph (optional) | Nodes and edges for routing hints and the schematic view | **Measured:** 17 KiB raw, 4 KiB gzip (diagram graph) | L7 prototype |
 
 `intersections` properties: `streets` (two or more names, normalised the way
 `chicago-grid.js` names them), `grid` (the address-grid numbers from
@@ -229,7 +229,7 @@ rather than drawing more.
 | **L4** ✓ | Base data sets in the snapshot (`water`, `green`, `buildings` with `pedway`, `streets`, `rail`, `labels`), per-layer `maxBytes`, `--only`/`--group` builds, refresh workflow includes them | `data:check` passes; the refresh PR shows per-layer diffs. |
 | **L5** ✓ | Self-hosted base drawn on canvas; `map.base` choice; *Pedway focus* dims the whole base group; offline worker precaches the base; raster tiles only outside the box in `both` | Airplane-mode test draws downtown with streets, buildings and water after one visit, with no tile requests inside the box. |
 | **L6** ✓ | `stage --self-contained` and its blocked-network test; About lists every external host and when it is used | The self-contained site passes the browser suite with all external requests blocked. |
-| **L7** (optional) | Measure PMTiles + protomaps-leaflet for a citywide self-hosted base; prototype the Pedway schematic view | A written go/no-go for each, with sizes. |
+| **L7** ✓ (optional) | Measure PMTiles + protomaps-leaflet for a citywide self-hosted base; prototype the Pedway schematic view | A written go/no-go for each, with sizes. |
 
 L2 needs no new data and can ship first. L3 and L4 are independent of each
 other. L5 needs L1 and L4.
@@ -496,3 +496,142 @@ empty map's ~33 ms is two animation frames of waiting, not drawing.
   sometimes failed on phones when another control sat beside it.
 * **Still open:** whether to publish the self-contained copy as a second site.
   Today it is a build option only.
+
+## L7 results
+
+Measured 2026-11-24. Both halves are build-time scripts that write to `_build/`
+only; nothing in the app changed.
+
+### Citywide base from PMTiles: no-go for now
+
+`node scripts/pmtiles-survey.mjs` reads the Protomaps daily planet build
+(`build.protomaps.com/20261124.pmtiles`, OSM data in the protomaps basemap
+schema that protomaps-leaflet styles, max zoom 15) with HTTP range requests,
+and writes one archive per area and max zoom. It reads the directories (0.8 MiB)
+and then the tiles (60 MiB). `--no-fetch` stops after the directories.
+`node scripts/pmtiles-survey-draw.mjs` then times protomaps-leaflet 5.1.0 (now a
+devDependency, for the measurement only) drawing them, under L0's conditions:
+Chromium, Pixel 7 emulation, CPU slowed 4×, median of 3 runs. The page has the
+site's CSP without the outside hosts, and the test refuses every request to
+another origin. None was made.
+
+The city box is the city limits' bounding box, `41.6445,-87.9401,42.0230,-87.5240`
+(32 × 42 km, some of it suburbs and lake). Lake tiles repeat, so the archives
+store them once.
+
+| Archive | Tiles | Size (tiles are already gzip) |
+| --- | ---: | ---: |
+| city, zooms 0–13 | 197 | 7.4 MiB |
+| city, zooms 0–14 | 677 | 19.2 MiB |
+| **city, zooms 0–15** | **2,510** | **58.8 MiB** |
+| downtown box, zooms 0–14 | 27 | 1.6 MiB |
+| downtown box, zooms 0–15 | 52 | 2.5 MiB |
+
+For comparison, today's six downtown GeoJSON files are 401 KiB gzip. The
+downtown archive is about six times that, because every zoom stores the
+geometry again, tiles reach past the box, and the schema carries points of
+interest, land use and road details the app does not draw. Zoom 15 alone is
+40 MiB of the city's 59; zoom 14 tiles overzoomed to 18 look coarser but
+complete.
+
+| Archive | Zoom | First draw | Pan 300 px | Zoom in one step | Range requests | Bytes read |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| city 0–15 | 12 | 395 | 291 | 264 | 13 | 357 KiB |
+| city 0–15 | 14 | 747 | 94 | 312 | 13 | 547 KiB |
+| city 0–15 | 16 | 774 | 169 | 233 | 7 | 441 KiB |
+| city 0–15 | 18 | 564 | 109 | 184 | 3 | 182 KiB |
+| city 0–14 | 16 | 813 | 154 | 220 | 5 | 279 KiB |
+| downtown 0–15 | 16 | 778 | 189 | 254 | 7 | 441 KiB |
+
+Times in milliseconds; requests and bytes are for the whole scenario (first
+draw, five pans and a zoom in), served locally, so there is no network delay.
+
+What the numbers say:
+
+* **It works, with no outside host.** protomaps-leaflet draws labels with
+  system fonts, needs no `eval`, and is 128 KB raw, 37 KiB gzip (Leaflet itself
+  is 41 KiB gzip). It draws the whole city offline from one file.
+* **It is about twice as slow as today's base.** First draw at zoom 16 is
+  about 0.78 s against 0.37 s for the GeoJSON base (L0), and 0.75 s against
+  0.44 s at zoom 14. Pans are close (0.17 s against 0.15 s).
+* **It does not fit the offline worker.** The Cache API refuses to store
+  `206 Partial Content` responses, so the worker could keep the archive only by
+  downloading all of it (19–59 MiB, against the 1.5 MB precache budget) and
+  answering ranges itself. Unpacked into `z/x/y.mvt` files instead (2,191
+  distinct files at zoom 15; protomaps-leaflet reads those too), tiles could be
+  cached on use, like the OSM tiles today, so nothing is gained offline over
+  them for areas not yet seen.
+* **It does not fit the data store.** Snapshots live in git, content-addressed:
+  each base refresh would add another 19–59 MiB blob to the repository's
+  history, against about 2 MiB for all of today's data.
+* **Two styles.** Inside the box the app's own base would still draw; outside it
+  the Protomaps style would. The edge would show, as it does today with OSM tiles.
+
+**Decision: no-go for now.** OSM raster tiles stay the base outside downtown.
+Revisit if the site must work offline or with no third party across the whole
+city. Then: zooms 0–14 (19 MiB), overzoomed above 14; unpacked to `z/x/y.mvt`
+files and cached on use; hosted outside git (a Release asset or a separate
+Pages branch), with its hash in the snapshot manifest like the other layers;
+built from the Protomaps planet as this script does, or with Planetiler from a
+Geofabrik extract to keep it on our own pipeline.
+
+### Pedway schematic: go, later, as a separate view
+
+`node scripts/pedway-schematic.mjs` builds a graph from the snapshot's Pedway
+ways and lays it out like a transit diagram. Steps:
+
+1. Vertices within 5 m become one node.
+2. Pieces of the Pedway within 60 m of each other are joined with a *gap* edge
+   (dashed), for passages OSM lacks.
+3. Stations marked `pedway` and access points attach to their nearest node
+   (120 m and 20 m at most). Named `pedway: true` buildings label the node
+   nearest their middle.
+4. Edges shorter than 30 m are merged, so a station complex becomes a few
+   nodes; then chains of unmarked nodes become one edge.
+5. A force layout pulls every edge toward a multiple of 45° and a length of
+   70–260 m, pushes nodes apart, and keeps a weak pull to their real position.
+6. Labels go right or left of their mark and are skipped when they would overlap
+   another label.
+
+The result is [pedway-schematic.svg](pedway-schematic.svg).
+
+| Step | Result |
+| --- | ---: |
+| Pedway ways → nodes, edges | 333 → 557, 636 |
+| Separate pieces, before and after joining gaps ≤ 60 m | 20 → 11 (9 gap edges) |
+| Stations on the Pedway placed | all 13 (14 features: Jackson is two) |
+| Access points within 20 m of the Pedway | 122 of 122 |
+| Diagram nodes, edges | 137, 134 |
+| Edges within 3° of a multiple of 45° | 99 of 134 |
+| Edge crossings, real geometry → diagram | 0 → 2 |
+| Labels placed: stations, buildings | 12 of 13, 42 of 54 |
+| Build time | about 0.1–0.2 s |
+| `graph.json` (the diagram's graph, with lengths, levels and OSM way ids) | 17 KiB raw, 4 KiB gzip |
+| `schematic.svg` | 32 KiB raw, 5 KiB gzip |
+
+What it shows:
+
+* **Size and speed are no concern.** The graph is a third of section 4's 50 KB
+  estimate, and the layout takes a fraction of a second at build time, so the
+  diagram can be built with the snapshot and drawn as static SVG, with no work in
+  the browser.
+* **The data is the problem, not the layout.** OSM's Pedway is 20 pieces, still
+  11 after joining 60 m gaps. Union Station, LaSalle Street, Van Buren,
+  Monroe, Jackson, Ogilvie and the Merchandise Mart stand alone, and the
+  Thompson Center is missing (as L3–L4 found for buildings). Some of that is
+  true (Union Station is not on the Pedway), some is missing data. A diagram
+  makes those gaps much more visible than the map does.
+* **The layout needs a better method to look designed.** A quarter of the edges
+  stay off 45°, labels can still sit on lines, and one station label is dropped.
+  A proper octilinear method (a grid-snapping or integer-programming layout, as
+  transit-map tools use) would fix that, at build time only.
+
+**Decision: go, as a later milestone, not now.** In order: (1) review the
+gaps against the City's Pedway map and fix what is missing in OSM, so the
+diagram is one connected network where the Pedway really is one; (2) replace
+the force layout with an octilinear grid layout and place labels against lines
+as well as labels; (3) add a *Diagram* view (a page or panel beside the map,
+reached from the Layers panel) that shows the SVG, with stations and entrances
+that open the same place on the map; (4) ship `graph.json` as an optional,
+lazy snapshot layer if routing hints are wanted.
+

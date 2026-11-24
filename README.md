@@ -27,6 +27,8 @@ node scripts/build-at.mjs --app <git ref> --data <id>   # build any app version 
 npx playwright test --config tests/compat/playwright.config.js   # check the sites in _build/ run
 node scripts/base-survey.mjs        # measure the self-hosted base map layers (docs/map-layers.md, L0)
 node scripts/base-survey-draw.mjs   # time drawing them on an emulated, slowed-down phone
+node scripts/pmtiles-survey.mjs     # measure a citywide PMTiles base (L7); pmtiles-survey-draw.mjs times it
+node scripts/pedway-schematic.mjs   # lay out the Pedway schematic prototype (L7) into _build/
 ```
 
 Vendored dependencies are pinned in `vendor/`: Fragment Kit v0.5.0, synced

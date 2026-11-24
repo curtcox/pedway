@@ -408,4 +408,4 @@ the project.
    Releases) and H4 (HashBin) remain.
 4. Map layers: split the map into independent layers, add a self-hosted
    non-tile base map of downtown, and add lat/long, geohash, USNG and
-   intersection overlays: [docs/map-layers.md](docs/map-layers.md). L0 (measuring) is done; L1–L7 are proposed.
+   intersection overlays: [docs/map-layers.md](docs/map-layers.md). L0–L7 are done; L7 decided no-go for a citywide PMTiles base for now, and go, later, for a Pedway schematic view.
