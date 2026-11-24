@@ -3,3 +3,18 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 #app { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 #map { flex: 1 1 auto; min-height: 240px; }
 .noscript { padding: 16px; }
+#map { position: relative; }
+#app { position: relative; }
+#app-status { position: absolute; z-index: 1000; top: 8px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); margin: 0; padding: 8px 14px; border-radius: 8px; background: var(--fk-surface, #fff); color: var(--fk-text, #111); border: 1px solid var(--fk-border, #ccc); box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+#app-status[hidden] { display: none; }
+#map-title { min-width: 8em; max-width: 22em; flex: 1 1 10em; padding: 8px 10px; font: inherit; border: 1px solid var(--fk-border, #ccc); border-radius: 6px; background: transparent; color: inherit; }
+.pin-marker { background: none; border: 0; }
+.pin-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--pin-color, #c0392b); color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .45); box-sizing: border-box; }
+.pin-popup h3 { margin: 0 0 4px; font-size: 1rem; }
+.pin-note { margin: 0; white-space: pre-wrap; max-width: 260px; max-height: 240px; overflow: auto; }
+#share-link { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace; word-break: break-all; }
+.share-note { margin-top: 0; color: var(--fk-muted, #555); }
+@media (max-width: 480px) {
+  #map-title { min-width: 0; flex: 1 1 5em; }
+  .fk-compact > .fk-toolbar button { padding: 8px 10px; }
+}

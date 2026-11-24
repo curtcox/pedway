@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://256t.us; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="theme-color" content="#1d4f7a">
 <meta name="description" content="Maps and tools for getting around the Chicago Pedway, the buildings it connects and nearby transit.">
 <meta name="pedway-build" content="pedway-tools-app">
@@ -18,6 +18,7 @@
 <body>
 <main id="app">
   <div id="map" role="region" aria-label="Map of the Chicago Loop and Pedway"></div>
+  <p id="app-status" role="status" aria-live="polite" hidden></p>
   <noscript><p class="noscript">Pedway Tools needs JavaScript to show the map.</p></noscript>
 </main>
 </body>

@@ -184,6 +184,23 @@ the project.
   address is sent to OpenStreetMap.
 * Transit: **static stations only in v1.** Live times are reached through external links.
 
+### M1 notes (2026-11-23)
+
+* Shareable state is `{ src: title, map: { view, level, layers, pins, gps } }`
+  (`src/doc.js`). Pins store a 9-character geohash. Normalization rejects
+  unknown fields, places outside Chicago and oversized notes, so a hostile link
+  cannot inject anything.
+* Links: `#v1.…` fragments are written as the map moves and the title changes.
+  `?example=<id>` links are replaced once. HashBin CID links (`#<cid>`) load
+  read-only from `256t.us`. A broken link shows an error and keeps the current map.
+* The app uses its own small share dialog (copy, the system share sheet, QR) instead of
+  Fragment Kit's: the kit's version adds a "Run on open" option that means
+  nothing for maps, and its link shortener goes through a third-party proxy.
+* Fragment Kit's browser contract suites assume a text editor, local drafts and
+  the library, so they are deferred to M6. Until then, `tests/browser/links.spec.js`
+  covers the same link guarantees.
+* Level and layer settings are stored and round-trip, but have no controls until M4.
+
 ## 8. Still open
 
 1. HashBin publishing needs a registered client ID. Until there is one, long

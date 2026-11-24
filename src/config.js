@@ -8,8 +8,7 @@ export const config = createConfig({
   recoveryOrigin: 'https://curtcox.github.io/pedway/',
   repo: 'curtcox/pedway',
   docs: 'https://github.com/curtcox/pedway#readme',
-  // Placeholder until example maps exist (M1).
-  gallery: 'https://github.com/curtcox/pedway/blob/main/PLAN.md',
+  gallery: 'examples.html',
   hashbinClientId: '',
   documentType: 'pedway-map',
 });
