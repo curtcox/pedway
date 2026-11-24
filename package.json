@@ -17,6 +17,10 @@
     "serve:site": "node scripts/stage.mjs _site && python3 -m http.server --bind 127.0.0.1 --directory _site"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1"
+  },
+  "overrides": {
+    "axe-core": "4.14.0"
   }
 }

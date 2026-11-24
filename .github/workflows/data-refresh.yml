@@ -1,0 +1,49 @@
+name: Data refresh
+# Rebuilds data/*.geojson from OpenStreetMap once a month and opens (or updates)
+# a pull request with the diff. Data never changes on main without review.
+# Needs Settings → Actions → General → "Allow GitHub Actions to create and
+# approve pull requests".
+on:
+  schedule:
+    - cron: '17 9 3 * *'   # 09:17 UTC on the 3rd of each month
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - run: npm run data:build
+      - run: npm run data:check
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data; then
+            echo "OpenStreetMap data is unchanged."
+            exit 0
+          fi
+          node scripts/data-diff.mjs > "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C data-refresh
+          git add data
+          git commit -m "Refresh data from OpenStreetMap ($(date -u +%Y-%m-%d))"
+          git push --force origin data-refresh
+          if [ "$(gh pr view data-refresh --json state --jq .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit data-refresh --body-file "$RUNNER_TEMP/summary.md"
+          else
+            gh pr create --head data-refresh --base main --title 'Refresh data from OpenStreetMap' --body-file "$RUNNER_TEMP/summary.md"
+          fi

@@ -47,7 +47,7 @@ export function createGps(L, map, { setStatus, onDropPin, accessPoints, geolocat
     if (!found) return setStatus('The entrance data has not loaded.', stopButton);
     const [lon, lat] = found.feature.geometry.coordinates;
     follow = false;
-    map.setView([lat, lon], Math.max(map.getZoom(), 18));
+    map.setView([lat, lon], Math.max(map.getZoom(), 18), map.options.zoomAnimation ? {} : { animate: false });
     const name = found.feature.properties.name ?? ({ elevator: 'Elevator', station: 'Station entrance' }[found.feature.properties.kind] ?? 'Entrance');
     setStatus(`${name}, about ${Math.round(found.distance)} m away. `, dropButton, stopButton);
   };
@@ -65,7 +65,7 @@ export function createGps(L, map, { setStatus, onDropPin, accessPoints, geolocat
     circle.setLatLng([lat, lon]).setRadius(accuracy);
     dot.setLatLng([lat, lon]);
     layer.addTo(map);
-    if (inChicago(lat, lon) && (first || follow)) map.setView([lat, lon], first ? Math.max(map.getZoom(), 17) : map.getZoom());
+    if (inChicago(lat, lon) && (first || follow)) map.setView([lat, lon], first ? Math.max(map.getZoom(), 17) : map.getZoom(), map.options.zoomAnimation ? {} : { animate: false });
     report();
   }
   function failed(error) {

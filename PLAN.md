@@ -169,7 +169,7 @@ the project.
 | M4 | Data v1: pedway, access points, CTA/Metra, plus layer toggles | Layers toggle and persist; data check passes in CI |
 | M5 | GPS, external apps, search box | Works on a phone over HTTPS |
 | M6 | Save/load library, file import/export, offline worker | Works in airplane mode after the first visit |
-| M7 | POI categories, data-refresh Action, polish, accessibility pass | — |
+| M7 | POI categories, data-refresh Action, polish, accessibility pass | axe finds no WCAG 2.2 A/AA problems; places toggle; the refresh opens a PR |
 
 ---
 
@@ -346,6 +346,54 @@ the project.
   checks that a tampered cache entry is never served. Fragment Kit's contract
   suites are still not used: they assume a text editor and drafts. Firefox runs
   only in CI, because it would not launch in the local sandbox.
+
+### M7 notes (2026-11-24)
+
+* **Places:** `data/poi.geojson`, one file with a `category` on each place, as
+  planned. Categories: *Food and coffee* (restaurants, cafés, fast food, food
+  courts, bakeries, delis), *Restrooms* (public toilets; private ones dropped),
+  *Groceries and pharmacies* (the plan's "store": supermarkets, convenience
+  stores, department stores, malls and pharmacies, not every shop), *Museums
+  and galleries* and *Parks and plazas*. Places come from Overpass, must be within
+  400 m of a Pedway vertex, and need a name unless they are restrooms. A place
+  within 30 m of a corridor (90 m when OSM puts it below street level) is marked
+  "On or beside the Pedway". COUNTS
+* Each category is its own layer under **Places** in the Layers panel, keyed as
+  the document already had them (`food`, `restroom`, `store`, `museum`, `park`).
+  Places appear from zoom 15 in; further out the panel says "Zoom in to see
+  places". Named places are found by the search box, which is also the keyboard
+  route to them.
+* `npm run data:build -- --only poi` rebuilds only the places against the
+  committed Pedway, so it does not churn the other files. The data check also
+  requires a minimum count per category, so one vanishing from OSM fails CI.
+* **Data refresh:** `.github/workflows/data-refresh.yml` runs on the 3rd of each
+  month and on demand. It rebuilds every file, runs the data check, and, if
+  `data/` changed, force-pushes a `data-refresh` branch and opens or updates a
+  pull request whose body (`scripts/data-diff.mjs`) lists added, removed and
+  changed features per file. Actions are pinned to the same commits as Fragment
+  Kit's workflows, and it uses `gh` instead of a third-party PR action. The repo
+  owner must allow Actions to create pull requests. A PR opened with the
+  workflow token does not trigger CI, so the PR body says how to run it.
+* **Accessibility:** `tests/browser/a11y.spec.js` runs axe-core 4.14.0
+  (`@axe-core/playwright`, pinned, with `axe-core` held at 4.14.0 by an
+  override) on the page, layers panel, pin and data popups, the pin editor,
+  share, export and About dialogs, and the examples page, failing on any WCAG
+  2.2 A/AA violation. The page already passed; fixes came from checks axe could
+  not make:
+  * Line chips used white text on Blue, Green, Orange and Pink at 2.7–3.7:1.
+    They now pick black or white by contrast (`textOn`), and a unit test holds
+    every chip at 4.5:1 and every place colour at 3:1 against white. axe marks
+    popup contrast "incomplete" because popups float over the map.
+  * Search suggestions were a `listbox` of `option`s holding buttons, which is
+    invalid ARIA. They are now a plain list of buttons, and a live note says how
+    many there are.
+  * `prefers-reduced-motion` turns off Leaflet's zoom, fade, marker and inertia
+    animations and animated recentring.
+  * Map controls, markers and the map itself get a visible focus ring.
+* **About** (in More): what the app is, data sources and ODbL attribution (plan
+  §4.7), how to fix data on OSM, what is sent where (privacy), and keyboard use.
+* Data files load independently, so one missing file no longer blanks the
+  others; the status bar says some data could not be loaded.
 
 ## 8. Still open
 
