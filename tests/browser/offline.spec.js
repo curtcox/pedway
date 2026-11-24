@@ -10,13 +10,15 @@ import { stage } from '../../scripts/stage.mjs';
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const TYPES = { html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json', geojson: 'application/geo+json', svg: 'image/svg+xml', png: 'image/png' };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-let server, site, base;
+let server, site, base, down = false;
 
 test.use({ serviceWorkers: 'allow' });
 test.setTimeout(120000);
 test.beforeAll(async ({}, info) => {
   site = await stage(`.offline-test-${process.pid}-${info.workerIndex}`);
   server = http.createServer(async (request, response) => {
+    // "Down" drops the connection, like a network with no signal.
+    if (down) return request.socket.destroy();
     const url = new URL(request.url, 'http://localhost');
     if (!url.pathname.startsWith('/pedway/')) { response.writeHead(404); return response.end(); }
     const file = path.join(site, decodeURIComponent(url.pathname.slice('/pedway/'.length)) || 'index.html');
@@ -35,9 +37,9 @@ test.afterAll(async () => {
   if (site?.startsWith(root)) await fs.rm(site, { recursive: true, force: true });
 });
 
-test('after one visit the map, its data and seen tiles work in airplane mode', async ({ page, context }) => {
+test('after one visit the map, its data and seen tiles work in airplane mode', async ({ page, context, browserName }) => {
   let tileRequests = 0;
-  await context.route('https://tile.openstreetmap.org/**', route => { tileRequests++; return route.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }); });
+  await context.route('https://tile.openstreetmap.org/**', route => { tileRequests++; return down ? route.abort('internetdisconnected') : route.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }); });
   await page.goto(base + '?example=meet');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('#offline-status')).toHaveText('Available offline', { timeout: 60000 });
@@ -49,7 +51,10 @@ test('after one visit the map, its data and seen tiles work in airplane mode', a
   await expect.poll(() => page.evaluate(async () => (await (await caches.open('pedway-tiles-v1')).keys()).length), { timeout: 20000 }).toBeGreaterThan(0);
   const doc = await page.evaluate(() => pedway.snapshot());
 
-  await context.setOffline(true);
+  // Playwright's offline mode in Firefox fails navigations before the service worker
+  // sees them, which real Firefox does not do; there the dropped server stands in.
+  down = true;
+  if (browserName !== 'firefox') await context.setOffline(true);
   try {
     const seen = tileRequests;
     await page.goto(href);
@@ -64,7 +69,7 @@ test('after one visit the map, its data and seen tiles work in airplane mode', a
     await page.goto(base);
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await expect(page.locator('#library-save')).toBeAttached();
-  } finally { await context.setOffline(false); }
+  } finally { down = false; await context.setOffline(false); }
 });
 
 test('a damaged offline file is detected and Repair fetches it again', async ({ page }) => {
