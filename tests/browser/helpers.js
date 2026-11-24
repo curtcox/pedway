@@ -3,7 +3,8 @@ import { expect } from '@playwright/test';
 // Serve blank tiles so tests never hit the OpenStreetMap tile servers.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 export async function blankTiles(page) {
-  await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', body: PNG }));
+  // The map asks for tiles with CORS so the offline worker can keep them.
+  await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }));
 }
 export async function open(page, href = './') {
   await page.goto(href);

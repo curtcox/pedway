@@ -1,4 +1,4 @@
-import { createShell, createQrDialog, HashBinStore, element, download } from '../vendor/fragment-kit-v0.5.0/src/index.js';
+import { createShell, createQrDialog, HashBinStore, element, openLibrary, createLibraryPanel } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { config, type, urlState } from './state.js';
 import { CHICAGO_BOUNDS, MIN_ZOOM, MAX_ZOOM, TILE_URL, TILE_ATTRIBUTION, LOOP_CENTER, DEFAULT_ZOOM } from './map-defaults.js';
 import { examples } from './examples.js';
@@ -12,6 +12,8 @@ import { createSearch } from './search.js';
 import { locationView } from './location-view.js';
 import { externalLinks } from './external.js';
 import { getLayerDefaults, setLayerDefaults } from './viewer-settings.js';
+import { createFileActions } from './file-actions.js';
+import { startOffline } from './offline.js';
 
 const L = globalThis.L;
 // Keep popups clear of the search box and status bar when they auto-pan into view.
@@ -23,23 +25,30 @@ let current = type.normalize({ src: '' });
 let loadRevision = 0, lastNavigationEvent = location.href;
 const fingerprint = doc => JSON.stringify(doc);
 let written = fingerprint(current);
+let libraryPanel = null;   // set once the library opens; null where IndexedDB is unavailable
 
 const shell = createShell({ config, actions: [
   { label: 'Add pin', id: 'pin-add', onClick: () => placing ? stopPlacing() : startPlacing() },
   { label: 'Share', id: 'share-open', onClick: () => share.open() },
   { label: 'QR code', id: 'qr-open', extra: true, onClick: () => qr.open(urlState.build(snapshot()).href) },
   { label: 'Loop', id: 'recenter', onClick: () => recenter() },
-  { label: 'Download', id: 'download', extra: true, onClick: () => download(new Blob([urlState.documents.serialize(snapshot())], { type: 'application/json' }), type.fileName) },
 ] });
 shell.toolbar.prepend(title);
-shell.offlineStatus.textContent = '';
+// Buttons that live only in the More menu.
+function menuButton(label, id, onClick) {
+  const button = element('button', label, { type: 'button', id });
+  button.onclick = () => { shell.drawer.dialog.close(); onClick(); };
+  shell.drawer.body.append(button);
+  return button;
+}
 
 const [[south, west], [north, east]] = CHICAGO_BOUNDS;
 const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8, zoomControl: false });
 // Search first so it sits at the top left, above zoom and "my location".
 const search = createSearch(L, map, { places: () => searchPlaces(), onPick: place => showSearchHit(place) });
 L.control.zoom({ position: 'topleft' }).addTo(map);
-const tiles = L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION }).addTo(map);
+// CORS tiles can be kept by the offline worker without the quota cost of opaque responses.
+const tiles = L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION, crossOrigin: true }).addTo(map);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
 const pins = createPinLayer(L, map, {
   onEdit: id => { const pin = findPin(id); if (pin) { pins.close(); editor.open(pin); } },
@@ -166,6 +175,7 @@ function changed() {
   ++loadRevision; lastNavigationEvent = null;
   const doc = snapshot();
   document.title = doc.src ? `${doc.src} — Pedway Tools` : 'Pedway Tools — Chicago Pedway maps';
+  libraryPanel?.changed();
   if (fingerprint(doc) === written) return;
   written = fingerprint(doc); current = doc;
   urlState.write(doc);
@@ -175,7 +185,7 @@ title.addEventListener('input', changed);
 
 const store = new HashBinStore({ config, type });
 async function navigate(href = location.href) {
-  const revision = ++loadRevision; urlState.cancel(); setStatus('');
+  const revision = ++loadRevision; urlState.cancel(); setStatus(''); libraryPanel?.cancelLoad();
   try {
     const intent = urlState.parse(href);
     let doc;
@@ -191,6 +201,9 @@ async function navigate(href = location.href) {
     else doc = blankMap();
     if (revision !== loadRevision) return;
     apply(doc); setStatus('');
+    // Links and CIDs are logged in the library's Recent list; examples and blank maps are not.
+    const record = intent.kind === 'source' || intent.kind === 'cid';
+    void libraryPanel?.opened(current, record ? { kind: intent.kind === 'cid' ? 'cid' : 'link', source: intent.cid } : { record: false });
     // Never ask for location on load: a map can only offer the button.
     if (current.map.gps && !gps.active) {
       const show = element('button', 'Show my location', { type: 'button', id: 'gps-offer' });
@@ -222,9 +235,49 @@ function navigateFromEvent(event) {
 }
 window.addEventListener('hashchange', navigateFromEvent);
 window.addEventListener('popstate', navigateFromEvent);
+
+// Opens a map from a file or the library as a new history entry, so Back returns to the previous map.
+function openDoc(doc) {
+  ++loadRevision; urlState.cancel(); stopPlacing();
+  apply(doc);
+  history.pushState(null, '', urlState.build(current).href);
+  lastNavigationEvent = location.href;
+}
+
+// Library: named maps with history, kept in this browser (IndexedDB).
+try {
+  const library = await openLibrary({ config, type, describe: doc => doc.src || `Untitled map with ${doc.map.pins.length} pin${doc.map.pins.length === 1 ? '' : 's'}` });
+  libraryPanel = createLibraryPanel({ library, store, urlState, getSnapshot: snapshot, shell, container: shell.toolbar,
+    onLoad: async doc => { openDoc(doc); setStatus(''); } });
+  // Save stays in the toolbar; Library moves into More on phones; Save as… is always in More.
+  const { saveButton, saveAsButton, openButton, statusEl } = libraryPanel;
+  saveButton.title = 'Save this map in this browser’s library';
+  openButton.classList.add('fk-mobile-extra');
+  menuButton('Library', 'library-open-menu', () => openButton.click());
+  shell.drawer.body.append(saveAsButton);
+  saveAsButton.addEventListener('click', () => shell.drawer.dialog.close(), { capture: true });
+  // The header shows this status on phones, where the status bar moves into More.
+  statusEl.setAttribute('data-fk-primary-status', '');
+  shell.status.prepend(statusEl);
+} catch (error) {
+  shell.draftStatus.textContent = 'Library unavailable: ' + error.message;
+}
+
+const files = createFileActions({ urlState, getSnapshot: snapshot, getPins: () => current.map.pins, blankMap, setPins, setStatus,
+  // A file is a new map: unbind it from any library entry unless it matches a saved one.
+  openDoc: doc => { openDoc(doc); void libraryPanel?.opened(current, { record: false }); },
+  dropTarget: map.getContainer(),
+  onLibraryFile: () => {
+    if (!libraryPanel) return setStatus('That is a library export, and the library is not available in this browser.');
+    libraryPanel.openLibraryDialog(); libraryPanel.openImport();
+  } });
+menuButton('Open file…', 'file-open', () => files.pick());
+menuButton('Export…', 'export-open', () => files.openExport());
+
+const offline = startOffline({ shell, setStatus, menuButton });
 await navigate();
 
 // Exposed for browser tests and debugging.
-globalThis.pedway = { map, shell, urlState, snapshot, examples, pins, data, gps, search };
+globalThis.pedway = { map, shell, urlState, snapshot, examples, pins, data, gps, search, files, offline, get library() { return libraryPanel; } };
 document.body.dataset.ready = 'true';
 document.documentElement.dataset.ready = 'true';

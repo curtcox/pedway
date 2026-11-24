@@ -93,3 +93,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .search-note { grid-column: 1 / -1; margin: 0; padding: 4px 8px 6px; font-size: .8rem; color: var(--fk-muted, #555); }
 .search-hit { display: grid; gap: 4px; }
 .search-hit h3 { margin: 0; font-size: 1rem; }
+.choice-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+#export-dialog .fk-dialog-body > p { margin: 8px 0 4px; }
+#export-dialog .fk-dialog-body > p:first-child { margin-top: 0; }
+#map.dropping { outline: 4px dashed #1565c0; outline-offset: -4px; }
+#offline-status:empty { display: none; }
+@media (max-width: 767px) { .fk-compact > .fk-toolbar .fk-library-status { display: none; } }
