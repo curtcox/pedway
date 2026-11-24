@@ -33,7 +33,7 @@ test('a station popup lists its lines and its Pedway connection', async ({ page 
   await expect(popup.locator('h3')).toHaveText('Clark/Lake');
   await expect(popup.locator('.line-chip')).toHaveText(['Blue', 'Brown', 'Green', 'Orange', 'Pink', 'Purple']);
   await expect(popup).toContainText('Connects to the Pedway');
-  await expect(popup.locator('a')).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(popup.locator('.data-source a')).toHaveAttribute('rel', 'noopener noreferrer');
 });
 
 test('turning layers off updates the map and the link, and the link restores them', async ({ page }) => {

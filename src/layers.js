@@ -2,6 +2,7 @@
 import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { DATA_LAYERS } from './data-layers.js';
 import { LEVELS } from './doc.js';
+import { externalLinks } from './external.js';
 
 export const CTA_COLORS = Object.freeze({ Red: '#c60c30', Blue: '#00a1de', Brown: '#62361b', Green: '#009b3a',
   Orange: '#f9461c', Pink: '#e27ea6', Purple: '#522398', Yellow: '#f9e300' });
@@ -13,12 +14,13 @@ const WHEELCHAIR = { yes: 'Step-free access', limited: 'Limited step-free access
 function osmLink(id) {
   return element('a', 'OpenStreetMap', { href: `https://www.openstreetmap.org/${id}`, target: '_blank', rel: 'noopener noreferrer' });
 }
-function card(title, lines, osm) {
+function card(title, lines, osm, at) {
   const body = element('div', null, { className: 'data-popup' });
   body.append(element('h3', title));
   for (const line of lines.filter(Boolean)) body.append(typeof line === 'string' ? element('p', line) : line);
   const source = element('p', 'Data: ', { className: 'data-source' });
   source.append(osmLink(osm));
+  if (at) body.append(externalLinks(at[1], at[0], title));
   body.append(source);
   return body;
 }
@@ -41,21 +43,23 @@ const STYLES = {
       p.kind === 'steps' ? 'Stairs' : { below: 'Below street level', street: 'At street level', above: 'Above street level' }[p.level],
       p.hours && `Hours: ${p.hours}`, WHEELCHAIR[p.wheelchair]], p.osm) },
   access: { point: ({ properties: p }) => ({ radius: 5, color: '#fff', weight: 1.5, fillColor: ACCESS[p.kind].color, fillOpacity: 1 }),
-    popup: ({ properties: p }) => card(p.name || ACCESS[p.kind].name, [p.name && ACCESS[p.kind].name, p.level && `Level ${p.level}`,
-      p.hours && `Hours: ${p.hours}`, WHEELCHAIR[p.wheelchair]], p.osm) },
+    popup: ({ properties: p, geometry }) => card(p.name || ACCESS[p.kind].name, [p.name && ACCESS[p.kind].name, p.level && `Level ${p.level}`,
+      p.hours && `Hours: ${p.hours}`, WHEELCHAIR[p.wheelchair]], p.osm, geometry.coordinates) },
   cta: { point: ({ properties: p }) => ({ radius: p.pedway ? 8 : 6, color: CTA_COLORS[p.lines?.[0]] ?? '#333', weight: 3, fillColor: '#fff', fillOpacity: 1 }),
-    popup: ({ properties: p }) => card(p.name, [lineChips(p.lines), p.pedway && 'Connects to the Pedway', WHEELCHAIR[p.wheelchair]], p.osm) },
+    popup: ({ properties: p, geometry }) => card(p.name, [lineChips(p.lines), p.pedway && 'Connects to the Pedway', WHEELCHAIR[p.wheelchair]], p.osm, geometry.coordinates) },
   metra: { point: ({ properties: p }) => ({ radius: p.pedway ? 8 : 6, color: METRA_COLOR, weight: 3, fillColor: '#dbe9f6', fillOpacity: 1 }),
-    popup: ({ properties: p }) => card(p.name, [p.lines?.length && `Metra: ${p.lines.join(', ')}`, p.pedway && 'Connects to the Pedway', WHEELCHAIR[p.wheelchair]], p.osm) },
+    popup: ({ properties: p, geometry }) => card(p.name, [p.lines?.length && `Metra: ${p.lines.join(', ')}`, p.pedway && 'Connects to the Pedway', WHEELCHAIR[p.wheelchair]], p.osm, geometry.coordinates) },
 };
 
 export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = new URL('../data/', import.meta.url) }) {
   const groups = new Map(DATA_LAYERS.map(layer => [layer.key, L.layerGroup()]));
-  let state = { layers: {}, level: 'both' };
+  const features = new Map(DATA_LAYERS.map(layer => [layer.key, []]));
+  let state = { layers: {}, level: 'both', gps: false };
   const loaded = Promise.all(DATA_LAYERS.map(async layer => {
     const response = await fetch(new URL(layer.file, baseUrl));
     if (!response.ok) throw new Error(`${layer.file}: ${response.status}`);
     const data = await response.json();
+    features.set(layer.key, data.features);
     const style = STYLES[layer.key];
     L.geoJSON(data, {
       style: style.style,
@@ -70,7 +74,7 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
 
   const visible = key => state.layers[key] && !(state.level === 'street' && (key === 'pedway' || key === 'access'));
   function show(next) {
-    state = { layers: { ...next.layers }, level: next.level };
+    state = { layers: { ...next.layers }, level: next.level, gps: Boolean(next.gps) };
     for (const [key, group] of groups) {
       if (visible(key)) group.addTo(map); else group.remove();
     }
@@ -101,7 +105,11 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
       level.onchange = () => onChange({ ...state, level: level.value });
       const levelLabel = element('label', null, { className: 'layer-level', for: 'layer-level' });
       levelLabel.append(element('span', 'View'), level);
-      sheet.append(levelLabel, element('p', 'Data © OpenStreetMap contributors. The Pedway changes with building hours; check signs underground.', { className: 'layers-note' }));
+      const offer = element('input', null, { type: 'checkbox', id: 'map-gps' });
+      offer.onchange = () => onChange({ ...state, gps: offer.checked });
+      const offerLabel = element('label', null, { className: 'layer-option', for: 'map-gps' });
+      offerLabel.append(offer, element('span', 'Offer “show my location” to people who open this link'));
+      sheet.append(levelLabel, offerLabel, element('p', 'Data © OpenStreetMap contributors. The Pedway changes with building hours; check signs underground.', { className: 'layers-note' }));
       toggle.onclick = () => { sheet.hidden = !sheet.hidden; toggle.setAttribute('aria-expanded', String(!sheet.hidden)); };
       box.addEventListener('keydown', event => { if (event.key === 'Escape' && !sheet.hidden) { sheet.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); } });
       box.append(toggle, sheet);
@@ -110,6 +118,7 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
       this.sync = () => {
         for (const [key, input] of boxes) input.checked = Boolean(state.layers[key]);
         level.value = state.level;
+        offer.checked = state.gps;
         for (const key of ['pedway', 'access']) boxes.get(key).disabled = state.level === 'street';
       };
       return box;
@@ -118,5 +127,5 @@ export function createDataLayers(L, map, { tiles, onChange, onError, baseUrl = n
     return { sync: () => control.sync?.() };
   })();
 
-  return { show, loaded, groups };
+  return { show, loaded, groups, features };
 }

@@ -74,3 +74,22 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .line-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .line-chip { padding: 1px 6px; border-radius: 9px; background: var(--line-color); color: #fff; font-size: .75rem; font-weight: 600; }
 #map.placing .leaflet-overlay-pane .leaflet-interactive { pointer-events: none; }
+.open-in { margin-top: 6px; font-size: .85rem; }
+.open-in summary { cursor: pointer; color: var(--fk-link, #0b57d0); }
+.open-in ul { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.gps-control button { width: 34px; height: 34px; font-size: 20px; line-height: 1; border: 0; background: var(--fk-surface, #fff); color: #333; cursor: pointer; }
+.gps-control button.active { color: #1a73e8; }
+#app-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#app-status button { margin-left: 0; }
+.search-control { background: var(--fk-surface, #fff); color: var(--fk-text, #111); max-width: calc(100vw - 80px); }
+.search-form { display: grid; grid-template-columns: 1fr auto; position: relative; }
+#search-input { width: min(320px, calc(100vw - 140px)); padding: 7px 8px; border: 0; font: inherit; font-size: 15px; background: transparent; color: inherit; }
+#search-go { padding: 0 10px; border: 0; border-left: 1px solid var(--fk-border, #ccc); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.search-results { grid-column: 1 / -1; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--fk-border, #ddd); max-height: 50vh; overflow: auto; }
+.search-results[hidden], .search-note[hidden] { display: none; }
+.search-option { display: grid; width: 100%; padding: 6px 8px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.search-option:hover, .search-option:focus { background: rgb(0 0 0 / .06); }
+.search-detail { color: var(--fk-muted, #555); font-size: .75rem; }
+.search-note { grid-column: 1 / -1; margin: 0; padding: 4px 8px 6px; font-size: .8rem; color: var(--fk-muted, #555); }
+.search-hit { display: grid; gap: 4px; }
+.search-hit h3 { margin: 0; font-size: 1rem; }

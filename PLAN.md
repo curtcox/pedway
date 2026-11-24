@@ -273,6 +273,36 @@ the project.
   their place in the document for M7.
 * While placing a pin, data shapes ignore taps so the tap reaches the map.
 
+### M5 notes (2026-11-23)
+
+* **Search box** (top left) reads, in order: any location format from M3 (no
+  network); then station, entrance and pin names from the loaded data,
+  suggested as you type; then, only after the user presses Go or Enter, an
+  OpenStreetMap Nominatim lookup. Nominatim is bounded to the Chicago box, spaced
+  at least 1.1 s apart, cached for the session, and results outside Chicago are
+  dropped. The input's tooltip says that typed addresses are sent to
+  OpenStreetMap. A hit opens a popup with the location in the viewer's format,
+  **Drop pin here** and **Open in…** links. The CSP's `connect-src` now allows
+  `nominatim.openstreetmap.org`.
+* **My location** (◎ under zoom): `watchPosition` starts only on tap. It draws a
+  dot with an accuracy circle and follows you until you drag the map. The status
+  bar offers **Drop pin here**, **Nearest entrance** (from `access.geojson`) and
+  **Stop**. Fixes worse than ±60 m warn that underground GPS is often wrong.
+  Refusal, unavailability, timeouts, non-https pages and places outside Chicago
+  each get their own message.
+* The document's `gps` flag is now set from the Layers panel ("Offer show my
+  location…"). A map opened with it shows a **Show my location** button and
+  never requests location by itself.
+* **Open in…** on pins, stations, entrances and search hits: Google Maps
+  (place, walking and transit directions), Apple Maps and OpenStreetMap, all in a
+  new tab with `noopener`. There is no CTA link: its trip planner takes no
+  coordinates. The plan's "preferred external app" setting was left out, since
+  listing all five links is simpler.
+* Popups auto-pan with room for the search box. Browser tests mock geolocation
+  and Nominatim, so CI never calls the real service. "Works on a phone over
+  HTTPS" is covered by Pixel 7 / iPhone 13 emulation; a check on a real device
+  is still to do.
+
 ## 8. Still open
 
 1. HashBin publishing needs a registered client ID. Until there is one, long
