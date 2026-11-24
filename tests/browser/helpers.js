@@ -25,3 +25,9 @@ export async function written(page) {
 }
 // Leaflet fades a closed popup out over 200 ms, so briefly two can exist; the newest is last.
 export const popup = page => page.locator('.leaflet-popup').last();
+// Opens a pin's popup and waits for its auto-pan to finish, so clicks land in the popup.
+export async function openPin(page, id) {
+  await page.evaluate(id => pedway.pins.open(id), id);
+  await expect(page.locator(`.leaflet-popup .pin-popup[data-pin="${id}"]`).last()).toBeVisible();
+  await page.waitForFunction(() => !pedway.map._panAnim?._inProgress && !pedway.map._animatingZoom);
+}

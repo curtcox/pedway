@@ -5,7 +5,9 @@ import { examples } from './examples.js';
 import { createPinLayer } from './pins.js';
 import { createPinEditor } from './pin-editor.js';
 import { createShare } from './share.js';
-import { pinAt, inChicago, LIMITS } from './doc.js';
+import { pinAt, inChicago, LIMITS, LAYERS, LEVELS } from './doc.js';
+import { createDataLayers } from './layers.js';
+import { getLayerDefaults, setLayerDefaults } from './viewer-settings.js';
 
 const L = globalThis.L;
 const status = document.getElementById('app-status');
@@ -28,12 +30,15 @@ shell.offlineStatus.textContent = '';
 
 const [[south, west], [north, east]] = CHICAGO_BOUNDS;
 const map = L.map('map', { center: LOOP_CENTER, zoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: CHICAGO_BOUNDS, maxBoundsViscosity: 0.8 });
-L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION }).addTo(map);
+const tiles = L.tileLayer(TILE_URL, { maxZoom: MAX_ZOOM, attribution: TILE_ATTRIBUTION }).addTo(map);
 L.control.scale({ imperial: true, metric: true }).addTo(map);
 const pins = createPinLayer(L, map, {
   onEdit: id => { const pin = findPin(id); if (pin) { pins.close(); editor.open(pin); } },
   onMove: (id, lat, lon) => setPins(current.map.pins.map(p => p.id === id ? pinAt(lat, lon, p) : p)),
 });
+const data = createDataLayers(L, map, { tiles,
+  onChange: ({ layers, level }) => setLayers(layers, level),
+  onError: () => setStatus('Could not load the Pedway and station data. Pins still work.') });
 const editor = createPinEditor({
   onSave: pin => { setPins(current.map.pins.map(p => p.id === pin.id ? pin : p)); pins.open(pin.id); },
   onDelete: id => setPins(current.map.pins.filter(p => p.id !== id)),
@@ -53,6 +58,18 @@ function setPins(list) {
   current = type.normalize({ ...current, src: title.value, map: { ...current.map, pins: list } });
   pins.render(current.map.pins);
   changed();
+}
+// Layer and view choices go into the link and become this viewer's default for new maps.
+function setLayers(layers, level) {
+  current = type.normalize({ ...current, src: title.value, map: { ...current.map, layers, level } });
+  data.show(current.map);
+  setLayerDefaults({ layers: current.map.layers, level: current.map.level });
+  changed();
+}
+function blankMap() {
+  const { layers, level } = getLayerDefaults();
+  const known = Object.fromEntries(Object.keys(LAYERS).filter(key => typeof layers?.[key] === 'boolean').map(key => [key, layers[key]]));
+  return { src: '', map: { layers: known, level: LEVELS.includes(level) ? level : 'both' } };
 }
 function nextId() {
   const ids = new Set(current.map.pins.map(pin => pin.id));
@@ -101,6 +118,7 @@ function apply(doc) {
   title.value = current.src;
   document.title = current.src ? `${current.src} — Pedway Tools` : 'Pedway Tools — Chicago Pedway maps';
   pins.render(current.map.pins);
+  data.show(current.map);
   whenSettled(() => map.setView(current.map.view.c, current.map.view.z, { animate: false }));
   written = fingerprint(current);
 }
@@ -132,7 +150,7 @@ async function navigate(href = location.href) {
       setStatus('Loading saved map…');
       doc = await store.load(intent.cid);
     } else if (intent.kind === 'publish') throw new Error('Saving to HashBin is not set up for Pedway Tools yet.');
-    else doc = { src: '' };
+    else doc = blankMap();
     if (revision !== loadRevision) return;
     apply(doc); setStatus('');
     if (intent.kind === 'example') history.replaceState(null, '', urlState.build(current).href);
@@ -163,6 +181,6 @@ window.addEventListener('popstate', navigateFromEvent);
 await navigate();
 
 // Exposed for browser tests and debugging.
-globalThis.pedway = { map, shell, urlState, snapshot, examples, pins };
+globalThis.pedway = { map, shell, urlState, snapshot, examples, pins, data };
 document.body.dataset.ready = 'true';
 document.documentElement.dataset.ready = 'true';

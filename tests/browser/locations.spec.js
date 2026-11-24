@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { blankTiles, open, snapshot, written, popup, here } from './helpers.js';
+import { blankTiles, open, snapshot, written, popup, here, openPin } from './helpers.js';
 
 test.beforeEach(({ page }) => blankTiles(page));
 
@@ -14,7 +14,7 @@ const metres = (a, b) => Math.hypot((a.lat - b.lat) * 111000, (a.lon - b.lon) * 
 test('a pin popup shows its location in the chosen format, remembered by this browser only', async ({ page }) => {
   await open(page, './?example=stations');
   const href = await written(page);
-  await page.evaluate(() => pedway.pins.open('clark-lake'));
+  await openPin(page, 'clark-lake');
   const view = popup(page).locator('.location-view');
   await expect(view.locator('.location-value')).toHaveText(/^41\.885\d+, -87\.630\d+$/);
 
@@ -28,7 +28,7 @@ test('a pin popup shows its location in the chosen format, remembered by this br
   // The choice is a viewer setting: it survives a reload but never enters the link.
   expect(await here(page)).toBe(href);
   await open(page, href);
-  await page.evaluate(() => pedway.pins.open('ogilvie'));
+  await openPin(page, 'ogilvie');
   await expect(popup(page).locator('.location-format')).toHaveValue('grid');
   await expect(popup(page).locator('.location-value')).toHaveText(/Canal St|Clinton St|Madison St|Washington St|\d+ [NSEW]/);
 });
@@ -37,7 +37,7 @@ test('Copy puts the shown location on the clipboard', async ({ page, context, br
   test.skip(browserName !== 'chromium', 'Only Chromium lets tests read the clipboard.');
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await open(page, './?example=stations');
-  await page.evaluate(() => pedway.pins.open('washington'));
+  await openPin(page, 'washington');
   await popup(page).locator('.location-format').selectOption('geohash');
   await popup(page).locator('.location-copy').click();
   await expect(popup(page).locator('.location-copy')).toHaveText('Copied');
@@ -47,7 +47,7 @@ test('Copy puts the shown location on the clipboard', async ({ page, context, br
 test('typing a location in the pin editor moves the pin', async ({ page }) => {
   await open(page, './?example=stations');
   await written(page);
-  await page.evaluate(() => pedway.pins.open('washington'));
+  await openPin(page, 'washington');
   await popup(page).locator('.pin-edit').click();
   const field = page.locator('#pin-location');
   await expect(field).toHaveValue(/^41\.883\d+, -87\.627\d+$/);
@@ -59,7 +59,7 @@ test('typing a location in the pin editor moves the pin', async ({ page }) => {
     ['41°53′01.4″N 87°37′40.1″W', { lat: 41.883722, lon: -87.627806 }],
   ]) {
     if (!(await page.locator('#pin-dialog').isVisible())) {
-      await page.evaluate(() => pedway.pins.open('washington'));
+      await openPin(page, 'washington');
       await popup(page).locator('.pin-edit').click();
     }
     await field.fill(text);
@@ -78,7 +78,7 @@ test('typing a location in the pin editor moves the pin', async ({ page }) => {
 test('an unreadable or out-of-town location is refused and the editor stays open', async ({ page }) => {
   await open(page, './?example=stations');
   const before = (await snapshot(page)).map.pins.find(p => p.id === 'ogilvie').at;
-  await page.evaluate(() => pedway.pins.open('ogilvie'));
+  await openPin(page, 'ogilvie');
   await popup(page).locator('.pin-edit').click();
   const field = page.locator('#pin-location');
 

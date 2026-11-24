@@ -17,3 +17,11 @@ export function setFormat(id) {
   if (!FORMAT_IDS.includes(id)) return;
   format = id; write({ format: id });
 }
+
+// The layers and view this viewer last chose start every new, blank map.
+// A shared link carries its own and overrides these.
+export function getLayerDefaults() {
+  const { layers, level } = read();
+  return { layers: layers && typeof layers === 'object' ? layers : null, level: typeof level === 'string' ? level : null };
+}
+export function setLayerDefaults({ layers, level }) { write({ layers, level }); }

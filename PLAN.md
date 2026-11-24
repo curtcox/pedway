@@ -241,6 +241,38 @@ the project.
   delay, and read `location.href` because `page.url()` misses `replaceState` under
   mobile emulation.
 
+### M4 notes (2026-11-23)
+
+* Data comes from OpenStreetMap only (`npm run data:build`, Overpass). That is
+  simpler than also parsing CTA/Metra GTFS, and OSM already carries station
+  names, step-free tags and the route relations used to work out each station's
+  lines. GTFS stays an option if OSM's station data proves stale.
+* **Pedway:** every way named "Pedway" in the Loop, plus unnamed underground
+  ways within two hops of one and under 120 m (stairs, door passages). That is
+  11 km, against the City's "about five miles" of corridor, because OSM maps
+  each side branch and stair. Growing through *all* connected underground ways
+  added 15 km of subway platforms and garages, so it was rejected. Riverwalk and
+  Lower Wacker are excluded by name.
+* **Access points** are entrances, lifts and subway entrances on those ways
+  (122). The plan's per-door building and hours fields are filled only where
+  OSM has them, which is rarely; better access data is a data-quality follow-up.
+* **Stations:** 143 CTA and 129 Metra stations citywide. A line serves a station
+  when its stop is within 80 m of the nearest stop of any line. A station
+  "connects to the Pedway" when a Pedway vertex is within 90 m. Known rough
+  edges: Monroe (Blue) and Harold Washington Library also list the Red line one
+  block away, and Union Station counts as connected because of passages OSM
+  tags "Pedway" near it.
+* `npm run data:check` (and the unit tests) validates every file: schema per
+  layer from `src/data-layers.js`, ids, Chicago bounds, 300 KB limit and OSM
+  attribution.
+* **Layers panel** (top right): one checkbox per data layer and a View choice.
+  *Pedway focus* fades the street tiles, and *Streets only* hides the Pedway and
+  its entrances without switching those layers off. Choices go into the link
+  and also become this viewer's default for new blank maps (local storage).
+  Shared links keep their own settings. POI layers (food, restroom, …) keep
+  their place in the document for M7.
+* While placing a pin, data shapes ignore taps so the tap reaches the map.
+
 ## 8. Still open
 
 1. HashBin publishing needs a registered client ID. Until there is one, long
