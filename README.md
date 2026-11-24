@@ -16,6 +16,7 @@ npm run check            # Fragment Kit static checks and vendor integrity
 npx playwright install chromium firefox webkit
 npm run test:browser     # needs `npm run serve` running
 npm run data:build       # build a new data snapshot from OpenStreetMap (review the diff)
+npm run data:build -- --only base   # rebuild just the downtown base map and corners (or core, poi)
 npm run data:check       # validate every data snapshot
 npm run data:list        # list snapshots; * marks the one data/current.json names
 npm run data:use -- 2026-11-24   # point data/current.json at another snapshot

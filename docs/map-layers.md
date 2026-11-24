@@ -257,7 +257,13 @@ other. L5 needs L1 and L4.
 ## 9. Still open
 
 1. ~~Confirm the self-hosted box after L0.~~ Kept (L0 results).
-2. Should the base map rebuild monthly with the rest of the data, or quarterly?
+2. How often should the base map rebuild? For now the monthly refresh rebuilds
+   only `core,poi` (the Pedway, stations and places, as before L4), keeping the base
+   files from the current snapshot. The base is rebuilt by running *Data refresh*
+   by hand with `groups` set to include `base`. The monthly run was already near
+   its 60-minute limit on busy Overpass days, and the base map adds five large
+   queries. Until the next base rebuild, `pedway: true` on buildings reflects the
+   Pedway as of the last base build.
 3. Is a self-contained deployment (L6) wanted as a second published site? It is
    a build option for now (`stage --self-contained`).
 

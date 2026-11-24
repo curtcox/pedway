@@ -5,7 +5,8 @@
 //   node scripts/build-data.mjs --cache d  # also keeps raw Overpass replies in d/
 //   node scripts/build-data.mjs --only poi # rebuild the places; other files come from the current snapshot
 //   node scripts/build-data.mjs --only base  # rebuild the base map and intersections (docs/map-layers.md)
-//   --only takes a comma-separated list of poi and base.
+//   --only takes a comma-separated list of core (the Pedway, entrances and stations),
+//   poi and base. Groups left out keep their files from the current snapshot.
 // Nothing is written when OpenStreetMap's answer matches the current snapshot.
 // The browser never calls Overpass; it only loads the committed files.
 import fs from 'node:fs/promises';
@@ -280,17 +281,18 @@ function builderCommit() {
   try { return execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(); } catch { return undefined; }
 }
 
-const GROUPS = ['poi', 'base'];
+const GROUPS = ['core', 'poi', 'base'];
 
 async function main() {
   const built = {};
   let vertices, kept = {};
   const groups = only ? only.split(',') : GROUPS;
   if (!groups.length || groups.some(group => !GROUPS.includes(group))) throw new Error(`--only takes ${GROUPS.join(' and/or ')}, or leave it out to rebuild every file.`);
-  if (only) {
+  if (!groups.includes('core')) {
     ({ texts: kept } = await readSnapshot(DATA_DIR, await currentId()));
     vertices = JSON.parse(kept.pedway).features.flatMap(f => f.geometry.coordinates.map(([lon, lat]) => [lat, lon]));
   } else {
+    if (only) ({ texts: kept } = await readSnapshot(DATA_DIR, await currentId()));
     const raw = await overpass('pedway', PEDWAY_QUERY);
     let pedway;
     ({ pedway, access: built.access, vertices } = buildPedway(raw.elements));

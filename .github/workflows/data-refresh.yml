@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '17 9 3 * *'   # 09:17 UTC on the 3rd of each month
   workflow_dispatch:
+    inputs:
+      groups:
+        description: 'What to rebuild: core (Pedway, entrances, stations), poi, base (downtown map and corners)'
+        default: 'core,poi'
 permissions:
   contents: read
 concurrency:
@@ -25,7 +29,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '22'
-      - run: npm run data:build
+      # The monthly run rebuilds the Pedway, stations and places. The downtown base map
+      # changes slowly and needs five more large Overpass queries, so it is rebuilt only
+      # when the workflow is run by hand with groups including base (docs/map-layers.md).
+      - run: npm run data:build -- --only "$GROUPS"
+        env:
+          GROUPS: ${{ inputs.groups || 'core,poi' }}
       - run: npm run data:check
       - name: Open or update the pull request
         env:
