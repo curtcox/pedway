@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
-    "@playwright/test": "1.64.1"
+    "@playwright/test": "1.64.1",
+    "protomaps-leaflet": "5.1.0"
   },
   "overrides": {
     "axe-core": "4.14.0"
