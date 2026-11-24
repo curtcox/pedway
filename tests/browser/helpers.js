@@ -11,11 +11,17 @@ export async function open(page, href = './') {
 }
 export const snapshot = page => page.evaluate(() => pedway.snapshot());
 export const build = (page, doc) => page.evaluate(doc => pedway.urlState.build(doc).href, doc);
+// page.url() can miss history.replaceState under mobile emulation, so ask the page.
+export const here = page => page.evaluate(() => location.href);
 export async function written(page) {
-  await expect.poll(() => new URL(page.url()).hash.startsWith('#v1.')).toBe(true);
-  // Fragment Kit debounces URL writes by 300 ms.
-  await page.waitForTimeout(400);
-  return page.url();
+  // Fragment Kit debounces URL writes, and map moves restart the wait: poll until the link holds the current map.
+  await expect.poll(() => page.evaluate(() => {
+    try {
+      const intent = pedway.urlState.parse(location.href);
+      return intent.kind === 'source' && JSON.stringify(intent.doc) === JSON.stringify(pedway.snapshot());
+    } catch { return false; }
+  })).toBe(true);
+  return here(page);
 }
 // Leaflet fades a closed popup out over 200 ms, so briefly two can exist; the newest is last.
 export const popup = page => page.locator('.leaflet-popup').last();

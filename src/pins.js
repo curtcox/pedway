@@ -2,6 +2,7 @@
 import { element } from '../vendor/fragment-kit-v0.5.0/src/index.js';
 import { pinLocation, inChicago } from './doc.js';
 import { renderMarkdown } from './markdown.js';
+import { locationView } from './location-view.js';
 
 export const GLYPHS = Object.freeze({ pin: '●', star: '★', door: '⇲', train: 'T', food: '🍴', restroom: 'WC', info: 'i', flag: '⚑' });
 export const ICON_NAMES = Object.freeze({ pin: 'Dot', star: 'Star', door: 'Entrance', train: 'Train', food: 'Food', restroom: 'Restroom', info: 'Info', flag: 'Flag' });
@@ -16,6 +17,7 @@ function popup(pin, onEdit) {
   const body = element('div', null, { className: 'pin-popup', 'data-pin': pin.id });
   body.append(element('h3', pin.label || 'Pin'));
   if (pin.md) { const note = element('div', null, { className: 'pin-note' }); note.append(renderMarkdown(pin.md)); body.append(note); }
+  body.append(locationView(...pinLocation(pin)));
   const edit = element('button', 'Edit', { type: 'button', className: 'pin-edit' });
   edit.onclick = () => onEdit(pin.id);
   body.append(edit);

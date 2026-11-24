@@ -77,8 +77,7 @@ src/
     latlon.js            decimal, DMS, "41.88N 87.63W"
     geohash.js           encode and decode
     usng.js              UTM/USNG conversion (WGS84; Chicago is zone 16T)
-    chicagoGrid.js       Chicago address-grid maths (State/Madison origin, 800 per mile)
-    intersections.js     "Clark & Lake" lookup against a prebuilt intersection index
+    chicago-grid.js      Chicago address grid: addresses, corners ("Clark & Lake"), grid numbers
     geocode.js           street addresses: grid first, optional Nominatim fallback
   notes/
     markdown.js          marked + DOMPurify rendering
@@ -211,6 +210,36 @@ the project.
   `rel="noopener noreferrer"`. Images become links rather than loading, so a shared map
   cannot track whoever opens it. Task-list checkboxes are shown read-only.
 * On phones, **QR code** moves into **More**; Share still offers it.
+
+### M3 notes (2026-11-23)
+
+* Formats live in `src/geo/`: `latlon.js`, `geohash.js`, `usng.js` (UTM and
+  USNG/MGRS), `chicago-grid.js` and the `formats.js` dispatcher. `parseLocation`
+  tries every format and prefers a reading inside Chicago, so `-87.63, 41.88`
+  (longitude first) and `Clark & Lake` both land in the right place.
+* Lat/lon input accepts decimal, hemisphere letters, degrees-minutes(-seconds),
+  `geo:` URIs and Google/Apple/OSM map links.
+* UTM uses Krüger's series and matches PROJ 9.9 to the millimetre; the tests hold
+  PROJ reference values.
+* The Chicago grid is a calibrated model, not a lookup table: piecewise-linear
+  profiles along State and Madison measured from OSM crossings
+  (`scripts/grid-survey.mjs`), with the grid's slight rotation included. It is
+  within about 30 m at test crossings across the city (≈120 m on the far West Side,
+  where Lake St drifts off its nominal 200 N). Addresses (`233 S Wacker Dr`),
+  corners (`Clark & Lake`, `63rd/Halsted`) and bare grid numbers (`1200 S, 800 W`)
+  work for about 160 named streets plus every numbered South Side street. This
+  replaces the separate `intersections.js` index for now; M4's data can add
+  exact corners for the Pedway area if the model ever falls short.
+* Nominatim fallback for addresses on streets the grid does not know is deferred
+  to M5 with the search box, since it is the only network call and needs the
+  explicit-search UI.
+* UI: each pin popup shows its location with a format picker and Copy button.
+  The chosen format is a viewer setting (local storage, `src/viewer-settings.js`)
+  and never enters links. The pin editor has a Location field that accepts any
+  format and refuses unreadable or out-of-town places.
+* Browser tests now wait until the link holds the current map instead of a fixed
+  delay, and read `location.href` because `page.url()` misses `replaceState` under
+  mobile emulation.
 
 ## 8. Still open
 
