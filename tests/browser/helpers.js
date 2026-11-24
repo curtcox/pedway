@@ -32,3 +32,8 @@ export async function openPin(page, id) {
   await expect(page.locator(`.leaflet-popup .pin-popup[data-pin="${id}"]`).last()).toBeVisible();
   await page.waitForFunction(() => !pedway.map._panAnim?._inProgress && !pedway.map._animatingZoom);
 }
+// Clicks a button in the More menu (it holds Save as…, Open file…, Export… and, on phones, Library).
+export async function menu(page, id) {
+  await page.locator('.fk-more').click();
+  await page.locator(`#fk-more-drawer #${id}`).click();
+}
