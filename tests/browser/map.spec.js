@@ -28,3 +28,11 @@ test('shows a map of the Loop that can be panned and zoomed', async ({ page }) =
   await expect.poll(async () => (await view()).zoom).toBe(start.zoom);
   expect(errors).toEqual([]);
 });
+
+test('the toolbar keeps to one row, so phones keep their map space', async ({ page }) => {
+  await open(page, './?example=stations');
+  const tops = await page.locator('.fk-compact > .fk-toolbar > :is(button, input)').evaluateAll(nodes =>
+    nodes.filter(node => node.offsetParent).map(node => Math.round(node.getBoundingClientRect().top)));
+  expect(tops.length).toBeGreaterThan(3);
+  expect(new Set(tops).size).toBe(1);
+});

@@ -99,3 +99,4 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 #map.dropping { outline: 4px dashed #1565c0; outline-offset: -4px; }
 #offline-status:empty { display: none; }
 @media (max-width: 767px) { .fk-compact > .fk-toolbar .fk-library-status { display: none; } }
+@media (min-width: 768px) { .mobile-only { display: none; } }

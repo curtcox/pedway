@@ -249,12 +249,14 @@ try {
   const library = await openLibrary({ config, type, describe: doc => doc.src || `Untitled map with ${doc.map.pins.length} pin${doc.map.pins.length === 1 ? '' : 's'}` });
   libraryPanel = createLibraryPanel({ library, store, urlState, getSnapshot: snapshot, shell, container: shell.toolbar,
     onLoad: async doc => { openDoc(doc); setStatus(''); } });
-  // Save stays in the toolbar; Library moves into More on phones; Save as… is always in More.
+  // Save and Library sit in the toolbar, and in More on phones so the toolbar keeps to one row.
+  // Save as… is always in More.
   const { saveButton, saveAsButton, openButton, statusEl } = libraryPanel;
   saveButton.title = 'Save this map in this browser’s library';
-  openButton.classList.add('fk-mobile-extra');
-  menuButton('Library', 'library-open-menu', () => openButton.click());
+  saveButton.classList.add('fk-mobile-extra'); openButton.classList.add('fk-mobile-extra');
+  menuButton('Save', 'library-save-menu', () => saveButton.click()).classList.add('mobile-only');
   shell.drawer.body.append(saveAsButton);
+  menuButton('Library', 'library-open-menu', () => openButton.click());
   saveAsButton.addEventListener('click', () => shell.drawer.dialog.close(), { capture: true });
   // The header shows this status on phones, where the status bar moves into More.
   statusEl.setAttribute('data-fk-primary-status', '');

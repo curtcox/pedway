@@ -4,20 +4,25 @@ import { blankTiles, open, snapshot, written, menu } from './helpers.js';
 
 test.beforeEach(({ page }) => blankTiles(page));
 const status = page => page.locator('#library-status');
+// Save is in the toolbar on wide screens and in More on phones.
+async function save(page) {
+  if (await page.locator('#library-save').isVisible()) await page.locator('#library-save').click();
+  else await menu(page, 'library-save-menu');
+}
 
 test('maps save to the library with history, survive a reload and reopen', async ({ page }) => {
   await open(page, './?example=meet');
   await written(page);
   const first = await snapshot(page);
   // Save on an unsaved map asks for a name; an empty name comes from the title.
-  await page.locator('#library-save').click();
+  await save(page);
   await expect(page.locator('#library-save-as-dialog')).toBeVisible();
   await page.locator('#library-save-as-confirm').click();
   await expect(status(page)).toContainText(`Saved as “${first.src}”`);
 
   await page.locator('#map-title').fill('Meet-up, second try');
   await expect(status(page)).toContainText('Unsaved changes');
-  await page.locator('#library-save').click();
+  await save(page);
   await expect(status(page)).toContainText('Saved to');
   const second = await snapshot(page);
 
