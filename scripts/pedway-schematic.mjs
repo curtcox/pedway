@@ -1,8 +1,8 @@
-// L7 prototype (docs/map-layers.md): a Pedway schematic, like a transit diagram,
+// Prototype (docs/map-layers.md, "Pedway schematic"): a Pedway schematic, like a transit diagram,
 // laid out from the snapshot's Pedway, station and access-point data alone.
 //   node scripts/pedway-schematic.mjs [--snapshot ID] [--out _build/pedway-schematic] [--gap 60]
 // --out docs/x writes there instead; docs/pedway-schematic.svg is one such copy.
-// Writes graph.json (the routable "Pedway graph" data set section 4 proposes),
+// Writes graph.json (the routable Pedway graph the docs propose as a snapshot layer),
 // schematic.json (the laid-out diagram) and schematic.svg, and prints sizes and
 // how well the layout did. Nothing goes into data/.
 import fs from 'node:fs/promises';

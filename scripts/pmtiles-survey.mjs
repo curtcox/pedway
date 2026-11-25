@@ -1,4 +1,4 @@
-// L7 measuring spike, part 1 (docs/map-layers.md): how big a self-hosted PMTiles
+// Measuring script, part 1 (docs/map-layers.md, "Citywide base from PMTiles"): how big a self-hosted PMTiles
 // base map would be for all of Chicago, and for the downtown box, by zoom.
 //   node scripts/pmtiles-survey.mjs [--planet URL] [--out _build/pmtiles-survey] [--no-fetch]
 // Reads the Protomaps daily planet build (protomaps basemap schema, the one

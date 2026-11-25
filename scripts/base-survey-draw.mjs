@@ -1,4 +1,4 @@
-// L0 measuring spike, part 2 (docs/map-layers.md): how long Leaflet takes to draw
+// Measuring script, part 2 (docs/map-layers.md, "Downtown GeoJSON base"): how long Leaflet takes to draw
 // the base layers that base-survey.mjs wrote, on canvas renderers, in Chromium
 // with Pixel 7 emulation and the CPU slowed down.
 //   node scripts/base-survey-draw.mjs [--in _build/base-survey] [--throttle 4] [--runs 3]

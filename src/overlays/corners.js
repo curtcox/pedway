@@ -1,4 +1,4 @@
-// Street corners from the intersections data set (docs/map-layers.md, L3): the
+// Street corners from the intersections data set (docs/map-layers.md, "Coordinate overlays"): the
 // nearest corner for the readout, exact positions for searched corners, and corner
 // labels for the address-grid overlay. Where the data has no corner (outside the
 // base box, or an older snapshot without it), callers fall back to the grid model.

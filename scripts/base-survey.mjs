@@ -1,4 +1,4 @@
-// L0 measuring spike for docs/map-layers.md: fetches the self-hosted base map
+// Measuring script for docs/map-layers.md ("Downtown GeoJSON base"): fetches the self-hosted base map
 // layers and the intersections data set for the downtown box from OpenStreetMap
 // (Overpass), clips and simplifies them, and reports what they would cost.
 //   node scripts/base-survey.mjs [--cache dir] [--out dir]

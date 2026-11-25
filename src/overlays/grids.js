@@ -3,7 +3,7 @@
 // tested without a browser. Each returns { lines, labels, step }:
 //   lines:  [{ points: [[lat, lon], …], major }]
 //   labels: [{ lat, lon, text, edge }]  edge: 'top' | 'left' | 'cell' (where it sits)
-// See docs/map-layers.md, section 5.
+// See docs/map-layers.md, "Coordinate overlays".
 import { encodeGeohash } from '../geo/geohash.js';
 import { toUtm, fromUtm, formatUsng } from '../geo/usng.js';
 import { gridToLatLon, latLonToGrid, gridNumberLabel, streetOnLine } from '../geo/chicago-grid.js';

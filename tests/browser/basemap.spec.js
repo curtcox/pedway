@@ -1,4 +1,4 @@
-// The self-hosted downtown map (docs/map-layers.md, L5) and the base map choice.
+// The self-hosted downtown map (docs/map-layers.md, "Downtown base map") and the base map choice.
 import { test, expect } from '@playwright/test';
 import { blankTiles, open, snapshot, build, written } from './helpers.js';
 

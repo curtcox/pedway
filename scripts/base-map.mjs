@@ -9,7 +9,7 @@ const BOX = `${S},${W},${N},${E}`;
 const [[CS, CW], [CN, CE]] = CHICAGO_BOUNDS;
 const CITY = `${CS},${CW},${CN},${CE}`;
 
-// What the snapshot keeps (the "proposed" copy measured in L0): full detail, without
+// What the snapshot keeps (the "as built" copy measured in docs/map-layers.md): full detail, without
 // sidewalks, crossings, parking aisles, driveways, green areas under 200 m² or osm
 // ids (a feature's id names its OSM object), with street ways merged by name and class.
 export const BASE_SETTINGS = Object.freeze({ places: 6, tolerance: { buildings: 0.5, streets: 1, water: 1, green: 1, rail: 1 }, minBuildingArea: 0,

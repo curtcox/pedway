@@ -2,7 +2,7 @@
 // Copies only the files the site needs into an output folder for GitHub Pages,
 // then writes the offline manifest (offline-assets.js) for the service worker.
 //   node scripts/stage.mjs [out] [--data <snapshot id>] [--self-contained]
-// --self-contained stages a copy that never contacts another server (docs/map-layers.md, L6).
+// --self-contained stages a copy that never contacts another server (docs/map-layers.md, "Self-contained build").
 // Of the data, only one snapshot is staged: the one data/current.json names, or
 // --data's. Its files are checked against their hashes. A snapshot on an older
 // schema is migrated (scripts/migrate-data.mjs); staging stops if this version of

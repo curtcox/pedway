@@ -1,5 +1,5 @@
-// L7 measuring spike, part 2 (docs/map-layers.md): how long protomaps-leaflet takes
-// to draw the archives pmtiles-survey.mjs wrote, under the same conditions as L0's
+// Measuring script, part 2 (docs/map-layers.md, "Citywide base from PMTiles"): how long protomaps-leaflet takes
+// to draw the archives pmtiles-survey.mjs wrote, under the same conditions as
 // base-survey-draw.mjs: Chromium, Pixel 7 emulation, CPU slowed down, the page's
 // own Content Security Policy, and every request to another host refused.
 //   node scripts/pmtiles-survey-draw.mjs [--in _build/pmtiles-survey] [--throttle 4] [--runs 3] [--shot file.png]

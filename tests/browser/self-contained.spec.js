@@ -1,4 +1,4 @@
-// A self-contained copy (stage --self-contained, docs/map-layers.md L6) contacts no
+// A self-contained copy (stage --self-contained, docs/map-layers.md, "Self-contained build") contacts no
 // server but its own: every other request fails this test.
 import { test, expect } from '@playwright/test';
 import http from 'node:http';

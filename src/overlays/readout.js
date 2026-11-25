@@ -1,7 +1,7 @@
 // The coordinate readout: the map centre (or the pointer, with a mouse) in every
 // coordinate system whose overlay is on, each with a Copy button. It is also the
 // text alternative for the overlays: in the tab order, and announced politely once
-// the map settles. See docs/map-layers.md, section 5.
+// the map settles. See docs/map-layers.md, "Coordinate overlays".
 import { element } from '../../vendor/fragment-kit-v0.5.0/src/index.js';
 import { OVERLAYS } from '../map-layers.js';
 import { formatDecimal, formatDms } from '../geo/latlon.js';

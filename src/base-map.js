@@ -1,4 +1,4 @@
-// The self-hosted base map of downtown (docs/map-layers.md, L5): land, green space,
+// The self-hosted base map of downtown (docs/map-layers.md, "Downtown base map"): land, green space,
 // water, streets, rail and buildings drawn from the data snapshot on canvas, and
 // street and place labels placed without overlaps. Nothing here is interactive, so
 // taps go through to the Pedway, stations and the map itself.

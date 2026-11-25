@@ -1,5 +1,5 @@
 // Builds the site from any version of the app with any data snapshot, using only
-// the repository: no Overpass, no HashBin, no npm. See docs/data-history.md (H2).
+// the repository: no Overpass, no HashBin, no npm. See docs/data-history.md, "Building any combination".
 //
 //   node scripts/build-at.mjs --app <git ref> [--data <snapshot id>] [--out <dir>]
 //
